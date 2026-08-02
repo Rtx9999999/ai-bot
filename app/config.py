@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
     telegram_token: str = Field(validation_alias=AliasChoices("TELEGRAM_TOKEN", "BOT_TOKEN", "TELEGRAM_BOT_TOKEN"))
     admin_ids: str = ""
