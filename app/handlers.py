@@ -50,7 +50,7 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
     @r.callback_query(F.data=="noop")
     async def noop(c:CallbackQuery): await c.answer()
 
-    @r.callback_query(F.data.in_({"gen","gen_hd","photo_custom","random_gen","theme_gen","video"}))
+    @r.callback_query(F.data.in_({"gen","gen_hd","photo_custom","random_gen","theme_gen","fiction_outfit","video"}))
     async def begin(c:CallbackQuery,state:FSMContext):
         u=await user_ok(c)
         if not u or not u["age_verified"]: return

@@ -45,3 +45,12 @@ def test_example_placeholders_do_not_initialize_s3():
     )
     assert not cfg.media_backend_ready
     assert Storage(cfg).client is None
+
+
+def test_main_menu_includes_safe_faceswap():
+    from app.keyboards import main
+    labels = [button.text for row in main().inline_keyboard for button in row]
+    callbacks = [button.callback_data for row in main().inline_keyboard for button in row]
+    assert "🔄 Face swap consenti" in labels
+    assert "👗 Tenue artistique (fiction)" in labels
+    assert "swap" in callbacks
