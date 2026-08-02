@@ -24,6 +24,7 @@ class Flow(StatesGroup): prompt=State(); face=State(); swap_media=State(); crypt
 
 def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage, payments: CryptoPayments, limiter: RateLimiter):
     r=Router()
+    welcome="👋 Bienvenue sur AI Assistant !\n\nChoisis une option ci-dessous pour commencer :"
 
     async def user_ok(event):
         uid=event.from_user.id; u=await db.one("SELECT * FROM users WHERE id=?",(uid,))
@@ -37,25 +38,38 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
         u=await db.ensure_user(m.from_user.id,m.from_user.username,cfg.free_credits,ref)
         if u["banned"]: return await m.answer("Accès suspendu.")
         if not u["age_verified"]: return await m.answer("🔞 Ce bot est strictement réservé aux adultes. Confirmez votre âge. Les contenus impliquant des mineurs ou l'absence de consentement sont interdits.",reply_markup=kb.age())
-        await m.answer("Bienvenue. Choisissez une action :",reply_markup=kb.main())
+        await m.answer(welcome,reply_markup=kb.main())
 
     @r.callback_query(F.data=="age:yes")
     async def verify_age(c:CallbackQuery):
-        await db.execute("UPDATE users SET age_verified=1,updated_at=? WHERE id=?",(now(),c.from_user.id)); await c.message.edit_text("Âge confirmé. Bienvenue.",reply_markup=kb.main()); await c.answer()
+        await db.execute("UPDATE users SET age_verified=1,updated_at=? WHERE id=?",(now(),c.from_user.id)); await c.message.edit_text(welcome,reply_markup=kb.main()); await c.answer()
     @r.callback_query(F.data=="age:no")
     async def reject_age(c:CallbackQuery): await c.message.edit_text("Accès refusé : ce service est réservé aux 18+."); await c.answer()
     @r.callback_query(F.data=="home")
-    async def home(c:CallbackQuery,state:FSMContext): await state.clear(); await c.message.edit_text("Menu principal",reply_markup=kb.main()); await c.answer()
+    async def home(c:CallbackQuery,state:FSMContext): await state.clear(); await c.message.edit_text(welcome,reply_markup=kb.main()); await c.answer()
     @r.callback_query(F.data=="noop")
     async def noop(c:CallbackQuery): await c.answer()
 
-    @r.callback_query(F.data.in_({"gen","video"}))
+    @r.callback_query(F.data.in_({"gen","gen_hd","photo_custom","random_gen","theme_gen","video"}))
     async def begin(c:CallbackQuery,state:FSMContext):
         u=await user_ok(c)
         if not u or not u["age_verified"]: return
-        if not cfg.generation_backend_ready(c.data):
+        kind="video" if c.data=="video" else "gen"
+        if not cfg.generation_backend_ready(kind):
             return await c.answer("Génération indisponible : configurez RunPod et R2 dans Railway.",show_alert=True)
-        await state.clear(); await state.update_data(kind=c.data); await c.message.edit_text("Choisissez le modèle :",reply_markup=kb.models()); await c.answer()
+        await state.clear(); await state.update_data(kind=kind,quality="hd" if c.data=="gen_hd" else "standard",entry=c.data); await c.message.edit_text("Choisissez le modèle :",reply_markup=kb.models()); await c.answer()
+
+    @r.callback_query(F.data=="daily_bonus")
+    async def daily_bonus(c:CallbackQuery):
+        day=datetime.now(timezone.utc).date().isoformat(); external=f"daily:{c.from_user.id}:{day}"
+        existing=await db.one("SELECT id FROM transactions WHERE external_id=?",(external,))
+        if existing:return await c.answer("Tu as déjà récupéré ton bonus aujourd'hui.",show_alert=True)
+        await db.execute("INSERT INTO transactions(user_id,provider,external_id,amount,currency,credits,status,metadata,created_at) VALUES(?,?,?,0,'CREDIT',1,'paid','{}',?)",(c.from_user.id,"daily",external,now()))
+        await db.credit(c.from_user.id,1); await c.answer("🎁 +1 crédit ajouté !",show_alert=True)
+
+    @r.callback_query(F.data=="support")
+    async def support(c:CallbackQuery):
+        await c.message.edit_text("❓ Aide & Support\n\n/start — afficher le menu\n/verify ID — vérifier un paiement crypto\n\nPour toute demande, contacte l'administrateur du bot.",reply_markup=kb.rows((("↩️ Menu","home"),))); await c.answer()
 
     @r.callback_query(F.data.startswith("set:"))
     async def settings(c:CallbackQuery,state:FSMContext):

@@ -2,7 +2,15 @@ from aiogram.types import InlineKeyboardButton as B, InlineKeyboardMarkup as M
 
 
 def rows(*items): return M(inline_keyboard=[[B(text=t, callback_data=d) for t,d in row] for row in items])
-def main(): return rows((("🎨 Générer", "gen"),("🎬 Vidéo", "video")), (("🔄 Face swap", "swap"),("🖼 Galerie", "gallery:0")), (("💳 Crédits", "shop"),("👤 Profil", "profile")))
+def main():
+    return M(inline_keyboard=[
+        [B(text="🔥 Image artistique HOT", callback_data="gen"), B(text="⭐ Image HD", callback_data="gen_hd")],
+        [B(text="✍️ Photo personnalisée", callback_data="photo_custom"), B(text="🎬 Vidéo personnalisée", callback_data="video")],
+        [B(text="🎲 IA aléatoire", callback_data="random_gen"), B(text="🎭 Séance à thème", callback_data="theme_gen")],
+        [B(text="🎁 Bonus quotidien", callback_data="daily_bonus"), B(text="💳 Recharger", callback_data="shop")],
+        [B(text="👤 Mon profil", callback_data="profile"), B(text="🖼 Ma galerie", callback_data="gallery:0")],
+        [B(text="📚 Communauté", url="https://t.me/telegram"), B(text="❓ Aide & Support", callback_data="support")],
+    ])
 def age(): return rows((("✅ Je certifie avoir 18 ans ou plus", "age:yes"),), (("❌ Quitter", "age:no"),))
 def models(): return rows((("Pony V6 XL","set:model:pony"),),( ("Realistic Vision 5.1","set:model:realistic"),),( ("Juggernaut XL","set:model:juggernaut"),))
 def choices(kind, values):
@@ -15,4 +23,3 @@ def gallery(index, total):
     nav.append(B(text=f"{index+1}/{total}",callback_data="noop"))
     if index+1<total: nav.append(B(text="➡️",callback_data=f"gallery:{index+1}"))
     return M(inline_keyboard=[nav,[B(text="↩️ Menu",callback_data="home")]])
-
