@@ -1,0 +1,8 @@
+runpod==1.11.0
+insightface==0.7.3
+onnxruntime-gpu==1.22.0
+opencv-python-headless==4.11.0.86
+numpy==1.26.4
+huggingface-hub==0.34.4
+requests==2.32.5
+

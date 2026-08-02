@@ -1,0 +1,9 @@
+{
+  "input": {
+    "source_face_url": "https://example.com/consenting-adult-source.jpg",
+    "target_url": "https://example.com/consenting-adult-target.jpg",
+    "is_video": false,
+    "engine": "insightface_roop",
+    "adult_consent_attested": true
+  }
+}

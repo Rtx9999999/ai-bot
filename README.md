@@ -37,9 +37,32 @@ l'endpoint si Hugging Face le demande. Les modèles peuvent être remplacés ave
 avant toute exploitation commerciale.
 
 Une fois l'endpoint créé, copiez son ID dans Railway sous
-`RUNPOD_IMAGE_ENDPOINT`. Cet endpoint ne traite pas encore la vidéo ni le face
-swap : laissez leurs variables d'endpoint vides jusqu'au déploiement de workers
-dédiés.
+`RUNPOD_IMAGE_ENDPOINT`.
+
+### Endpoints vidéo et face swap fournis
+
+Deux workers Queue supplémentaires sont disponibles :
+
+- vidéo AnimateDiff : `/runpod/video/Dockerfile`, à relier à
+  `RUNPOD_VIDEO_ENDPOINT` ; utilisez au moins 24 Go de VRAM ;
+- face swap InsightFace : `/runpod/faceswap/Dockerfile`, à relier à
+  `RUNPOD_FACESWAP_ENDPOINT` ; 16 Go de VRAM suffisent généralement.
+
+Le worker vidéo produit des clips MP4 de 2 à 5 secondes. Realistic Vision 5.1
+étant un modèle SD1.5 incompatible avec l'adaptateur AnimateDiff SDXL choisi,
+son option vidéo utilise par défaut `SG161222/RealVisXL_V4.0`. Elle peut être
+remplacée avec `MODEL_VIDEO_REALISTIC`.
+
+Le worker face swap accepte les images et les vidéos courtes, exige le champ
+`adult_consent_attested=true` et conserve l'audio lorsqu'il existe. Il ne doit
+être utilisé que sur des personnes majeures ayant explicitement consenti. Les
+fichiers sont traités dans des fichiers temporaires supprimés après chaque job.
+
+Pour limiter les coûts, configurez chaque endpoint avec 0 worker actif et 1
+worker maximum. Un Network Volume améliore les redémarrages, mais engendre un
+coût de stockage persistant ; commencez sans volume si le budget est prioritaire.
+Vérifiez les licences de chaque modèle, notamment avant toute exploitation
+commerciale.
 
 Les endpoints reçoivent un objet RunPod `{ "input": ... }`.
 

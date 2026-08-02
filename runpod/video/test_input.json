@@ -1,0 +1,15 @@
+{
+  "input": {
+    "prompt": "adult fantasy character walking through a moonlit forest",
+    "negative_prompt": "low quality, blurry, malformed anatomy",
+    "model": "ponyDiffusionV6XL_v6StartWithThisOne.safetensors",
+    "width": 576,
+    "height": 576,
+    "steps": 20,
+    "cfg_scale": 7,
+    "seed": 42,
+    "duration_seconds": 2,
+    "fps": 8,
+    "engine": "animatediff"
+  }
+}

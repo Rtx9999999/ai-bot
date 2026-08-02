@@ -38,5 +38,5 @@ class RunPod:
         if str(value).startswith("http"):
             async with aiohttp.ClientSession() as s:
                 async with s.get(value) as r: r.raise_for_status(); return await r.read(), r.headers.get("Content-Type", "application/octet-stream")
-        raw = str(value).split(",", 1)[-1]; return base64.b64decode(raw), "application/octet-stream"
-
+        raw = str(value).split(",", 1)[-1]
+        return base64.b64decode(raw), str(output.get("content_type") or "application/octet-stream")
