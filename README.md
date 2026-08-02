@@ -19,7 +19,7 @@ docker compose logs -f bot
 
 La base est créée automatiquement dans le volume `bot_data`. En exécution Python directe, utilisez Python 3.12, `pip install -r requirements.txt`, puis `python -m app.main`.
 
-`TELEGRAM_TOKEN` est la seule variable obligatoire pour démarrer le bot et afficher les menus. Sans RunPod et R2/S3, le bot reste en ligne mais les fonctions de génération et de face swap indiquent qu'elles ne sont pas encore configurées.
+`TELEGRAM_TOKEN` est la seule variable obligatoire pour démarrer le bot et afficher les menus. Les alias `BOT_TOKEN` et `TELEGRAM_BOT_TOKEN` sont aussi acceptés. Sans RunPod et R2/S3, le bot reste en ligne mais les fonctions de génération et de face swap indiquent qu'elles ne sont pas encore configurées.
 
 ## Contrat RunPod
 

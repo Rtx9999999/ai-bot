@@ -1,12 +1,12 @@
 from functools import lru_cache
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    telegram_token: str
+    telegram_token: str = Field(validation_alias=AliasChoices("TELEGRAM_TOKEN", "BOT_TOKEN", "TELEGRAM_BOT_TOKEN"))
     admin_ids: str = ""
     database_path: str = "data/bot.db"
     runpod_api_key: str = ""

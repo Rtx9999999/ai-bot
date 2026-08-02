@@ -26,3 +26,8 @@ def test_optional_generation_backends():
     assert not cfg.media_backend_ready
     assert not cfg.generation_backend_ready("gen")
     assert not cfg.faceswap_backend_ready
+
+
+def test_common_telegram_token_aliases(monkeypatch):
+    monkeypatch.setenv("BOT_TOKEN", "123456:alias")
+    assert Settings().telegram_token == "123456:alias"
