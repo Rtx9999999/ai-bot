@@ -53,6 +53,8 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
     async def begin(c:CallbackQuery,state:FSMContext):
         u=await user_ok(c)
         if not u or not u["age_verified"]: return
+        if not cfg.generation_backend_ready(c.data):
+            return await c.answer("Génération indisponible : configurez RunPod et R2 dans Railway.",show_alert=True)
         await state.clear(); await state.update_data(kind=c.data); await c.message.edit_text("Choisissez le modèle :",reply_markup=kb.models()); await c.answer()
 
     @r.callback_query(F.data.startswith("set:"))
@@ -154,6 +156,8 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
 
     @r.callback_query(F.data=="swap")
     async def swap(c:CallbackQuery,state:FSMContext):
+        if not cfg.faceswap_backend_ready:
+            return await c.answer("Face swap indisponible : configurez RunPod et R2 dans Railway.",show_alert=True)
         await state.clear(); await state.set_state(Flow.face); await c.message.edit_text("Envoyez une photo nette du visage. Vous devez disposer du consentement explicite de la personne représentée."); await c.answer()
     @r.message(Flow.face,F.photo)
     async def face(m:Message,state:FSMContext):

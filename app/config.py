@@ -9,17 +9,17 @@ class Settings(BaseSettings):
     telegram_token: str
     admin_ids: str = ""
     database_path: str = "data/bot.db"
-    runpod_api_key: str
-    runpod_image_endpoint: str
-    runpod_video_endpoint: str
-    runpod_faceswap_endpoint: str
+    runpod_api_key: str = ""
+    runpod_image_endpoint: str = ""
+    runpod_video_endpoint: str = ""
+    runpod_faceswap_endpoint: str = ""
     runpod_timeout_seconds: int = 600
-    s3_endpoint_url: str
-    s3_access_key: str
-    s3_secret_key: str
-    s3_bucket: str
+    s3_endpoint_url: str = ""
+    s3_access_key: str = ""
+    s3_secret_key: str = ""
+    s3_bucket: str = ""
     s3_region: str = "auto"
-    s3_public_url: str
+    s3_public_url: str = ""
     solana_rpc_url: str = "https://api.mainnet-beta.solana.com"
     solana_wallet: str = ""
     sol_usd_price: float = 150.0
@@ -40,6 +40,18 @@ class Settings(BaseSettings):
     def admins(self) -> set[int]:
         return {int(x.strip()) for x in self.admin_ids.split(",") if x.strip()}
 
+    @property
+    def media_backend_ready(self) -> bool:
+        return all((self.s3_endpoint_url, self.s3_access_key, self.s3_secret_key, self.s3_bucket, self.s3_public_url))
+
+    def generation_backend_ready(self, kind: str) -> bool:
+        endpoint = self.runpod_video_endpoint if kind == "video" else self.runpod_image_endpoint
+        return bool(self.runpod_api_key and endpoint and self.media_backend_ready)
+
+    @property
+    def faceswap_backend_ready(self) -> bool:
+        return bool(self.runpod_api_key and self.runpod_faceswap_endpoint and self.media_backend_ready)
+
     @field_validator("s3_public_url")
     @classmethod
     def strip_url(cls, value: str) -> str:
@@ -49,4 +61,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()  # type: ignore[call-arg]
-

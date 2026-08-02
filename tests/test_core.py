@@ -3,6 +3,7 @@ import tempfile
 from pathlib import Path
 from app.db import Database
 from app.security import validate_prompt
+from app.config import Settings
 
 
 def test_prompt_filter():
@@ -19,3 +20,9 @@ def test_atomic_credit_flow():
             await db.credit(1,3); u=await db.one("SELECT * FROM users WHERE id=1"); assert u["credits"]==4
     asyncio.run(run())
 
+
+def test_optional_generation_backends():
+    cfg = Settings(telegram_token="123456:test")
+    assert not cfg.media_backend_ready
+    assert not cfg.generation_backend_ready("gen")
+    assert not cfg.faceswap_backend_ready
