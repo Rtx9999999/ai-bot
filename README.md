@@ -23,6 +23,24 @@ La base est créée automatiquement dans le volume `bot_data`. En exécution Pyt
 
 ## Contrat RunPod
 
+### Endpoint image fourni
+
+Le worker image se trouve dans `runpod/image`. Créez un endpoint Serverless à
+partir de ce dépôt, choisissez le mode **Queue** et indiquez le chemin Dockerfile
+`/runpod/image/Dockerfile`. Pour commencer à moindre coût, utilisez 0 worker
+minimum et 1 worker maximum. Attachez un Network Volume afin de conserver le
+cache des modèles dans `/runpod-volume/huggingface` entre les démarrages.
+
+Le premier appel télécharge le modèle. Ajoutez `HF_TOKEN` aux variables de
+l'endpoint si Hugging Face le demande. Les modèles peuvent être remplacés avec
+`MODEL_PONY`, `MODEL_REALISTIC` et `MODEL_JUGGERNAUT`. Vérifiez leurs licences
+avant toute exploitation commerciale.
+
+Une fois l'endpoint créé, copiez son ID dans Railway sous
+`RUNPOD_IMAGE_ENDPOINT`. Cet endpoint ne traite pas encore la vidéo ni le face
+swap : laissez leurs variables d'endpoint vides jusqu'au déploiement de workers
+dédiés.
+
 Les endpoints reçoivent un objet RunPod `{ "input": ... }`.
 
 - Image : `prompt`, `negative_prompt`, `model`, `width`, `height`, `steps`, `cfg_scale`, `seed`.
