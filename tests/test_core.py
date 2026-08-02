@@ -4,6 +4,7 @@ from pathlib import Path
 from app.db import Database
 from app.security import validate_prompt
 from app.config import Settings
+from app.storage import Storage
 
 
 def test_prompt_filter():
@@ -31,3 +32,16 @@ def test_optional_generation_backends():
 def test_common_telegram_token_aliases(monkeypatch):
     monkeypatch.setenv("BOT_TOKEN", "123456:alias")
     assert Settings().telegram_token == "123456:alias"
+
+
+def test_example_placeholders_do_not_initialize_s3():
+    cfg = Settings(
+        telegram_token="999999:real",
+        s3_endpoint_url="https://ACCOUNT_ID.r2.cloudflarestorage.com",
+        s3_access_key="replace_me",
+        s3_secret_key="replace_me",
+        s3_bucket="adult-art-bot",
+        s3_public_url="https://media.example.com",
+    )
+    assert not cfg.media_backend_ready
+    assert Storage(cfg).client is None

@@ -3,6 +3,13 @@ from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+PLACEHOLDERS = ("replace_me", "account_id", "endpoint_id", "example.com", "123456:")
+
+
+def configured(*values: str) -> bool:
+    return all(value and not any(marker in value.lower() for marker in PLACEHOLDERS) for value in values)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
@@ -42,15 +49,15 @@ class Settings(BaseSettings):
 
     @property
     def media_backend_ready(self) -> bool:
-        return all((self.s3_endpoint_url, self.s3_access_key, self.s3_secret_key, self.s3_bucket, self.s3_public_url))
+        return configured(self.s3_endpoint_url, self.s3_access_key, self.s3_secret_key, self.s3_bucket, self.s3_public_url)
 
     def generation_backend_ready(self, kind: str) -> bool:
         endpoint = self.runpod_video_endpoint if kind == "video" else self.runpod_image_endpoint
-        return bool(self.runpod_api_key and endpoint and self.media_backend_ready)
+        return configured(self.runpod_api_key, endpoint) and self.media_backend_ready
 
     @property
     def faceswap_backend_ready(self) -> bool:
-        return bool(self.runpod_api_key and self.runpod_faceswap_endpoint and self.media_backend_ready)
+        return configured(self.runpod_api_key, self.runpod_faceswap_endpoint) and self.media_backend_ready
 
     @field_validator("s3_public_url")
     @classmethod

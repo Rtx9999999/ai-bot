@@ -11,8 +11,11 @@ class Storage:
         self.cfg = cfg
         self.client = None
         if cfg.media_backend_ready:
-            self.client = boto3.client("s3", endpoint_url=cfg.s3_endpoint_url, aws_access_key_id=cfg.s3_access_key,
-                aws_secret_access_key=cfg.s3_secret_key, region_name=cfg.s3_region)
+            try:
+                self.client = boto3.client("s3", endpoint_url=cfg.s3_endpoint_url, aws_access_key_id=cfg.s3_access_key,
+                    aws_secret_access_key=cfg.s3_secret_key, region_name=cfg.s3_region)
+            except ValueError:
+                self.client = None
 
     async def upload(self, data: bytes, ext: str, content_type: str, prefix: str = "media") -> str:
         if self.client is None:
