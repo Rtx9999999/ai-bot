@@ -2,7 +2,7 @@ import asyncio
 import tempfile
 from pathlib import Path
 from app.db import Database
-from app.security import validate_prompt
+from app.security import validate_prompt, validate_real_photo_edit
 from app.config import Settings
 from app.storage import Storage
 
@@ -11,6 +11,8 @@ def test_prompt_filter():
     assert validate_prompt("portrait sensuel de deux adultes consentants")[0]
     assert not validate_prompt("underage schoolgirl")[0]
     assert not validate_prompt("forced sex scene")[0]
+    assert not validate_real_photo_edit("make the real person topless")[0]
+    assert validate_real_photo_edit("replace the shirt with a red evening dress")[0]
 
 
 def test_atomic_credit_flow():
@@ -52,5 +54,5 @@ def test_main_menu_includes_safe_faceswap():
     labels = [button.text for row in main().inline_keyboard for button in row]
     callbacks = [button.callback_data for row in main().inline_keyboard for button in row]
     assert "🔄 Face swap consenti" in labels
-    assert "👗 Tenue artistique (fiction)" in labels
+    assert "👗 Changer tenue (photo)" in labels
     assert "swap" in callbacks

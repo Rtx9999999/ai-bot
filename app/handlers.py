@@ -14,12 +14,12 @@ from .constants import LEVELS, MODELS, NEGATIVE_PROMPT, PACKS, PREMIUM_STARS, RA
 from .db import Database, now
 from .payments import CryptoPayments
 from .runpod import RunPod
-from .security import RateLimiter, validate_prompt
+from .security import RateLimiter, validate_prompt, validate_real_photo_edit
 from .storage import Storage
 
 log = logging.getLogger(__name__)
 
-class Flow(StatesGroup): prompt=State(); face=State(); swap_media=State(); crypto_pack=State()
+class Flow(StatesGroup): prompt=State(); face=State(); swap_media=State(); crypto_pack=State(); outfit_photo=State()
 
 
 def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage, payments: CryptoPayments, limiter: RateLimiter):
@@ -50,7 +50,7 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
     @r.callback_query(F.data=="noop")
     async def noop(c:CallbackQuery): await c.answer()
 
-    @r.callback_query(F.data.in_({"gen","gen_hd","photo_custom","random_gen","theme_gen","fiction_outfit","video"}))
+    @r.callback_query(F.data.in_({"gen","gen_hd","photo_custom","random_gen","theme_gen","video"}))
     async def begin(c:CallbackQuery,state:FSMContext):
         u=await user_ok(c)
         if not u or not u["age_verified"]: return
@@ -58,6 +58,23 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
         if not cfg.generation_backend_ready(kind):
             return await c.answer("Génération indisponible : configurez RunPod et R2 dans Railway.",show_alert=True)
         await state.clear(); await state.update_data(kind=kind,quality="hd" if c.data=="gen_hd" else "standard",entry=c.data); await c.message.edit_text("Choisissez le modèle :",reply_markup=kb.models()); await c.answer()
+
+    @r.callback_query(F.data=="outfit_photo")
+    async def outfit_start(c:CallbackQuery,state:FSMContext):
+        if not cfg.generation_backend_ready("gen"):
+            return await c.answer("Modification indisponible : configurez RunPod et R2 dans Railway.",show_alert=True)
+        await state.clear(); await state.set_state(Flow.outfit_photo)
+        await c.message.edit_text("👗 Envoie la photo à modifier. La personne doit être majeure et consentante. Seuls les changements de tenue non nus sont acceptés.")
+        await c.answer()
+
+    @r.message(Flow.outfit_photo,F.photo)
+    async def outfit_upload(m:Message,state:FSMContext):
+        f=await m.bot.get_file(m.photo[-1].file_id); buf=await m.bot.download_file(f.file_path)
+        if len(buf.getvalue())>cfg.max_upload_mb*1024*1024:return await m.answer("Fichier trop volumineux.")
+        url=await storage.upload(buf.getvalue(),"jpg","image/jpeg","uploads")
+        await state.update_data(kind="gen",entry="outfit_photo",target_url=url,model="realistic",style="realiste",level="soft",ratio="1:1",resolution="1024")
+        await state.set_state(Flow.prompt)
+        await m.answer("Décris la nouvelle tenue souhaitée. La nudité ou la transparence explicite sur une personne réelle sera refusée.")
 
     @r.callback_query(F.data=="daily_bonus")
     async def daily_bonus(c:CallbackQuery):
@@ -85,7 +102,9 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
 
     @r.message(Flow.prompt,F.text)
     async def prompt(m:Message,state:FSMContext):
-        ok,reason=validate_prompt(m.text)
+        d=await state.get_data()
+        validator=validate_real_photo_edit if d.get("entry")=="outfit_photo" else validate_prompt
+        ok,reason=validator(m.text)
         if not ok:return await m.answer(reason)
         await state.update_data(prompt=m.text); d=await state.get_data()
         await m.answer(f"Confirmer :\n\n{m.text}\n\nModèle: {d['model']} · Style: {d['style']} · Niveau: {d['level']} · Ratio: {d['ratio']}",reply_markup=kb.confirm())
@@ -98,6 +117,8 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
         try:
             rw,rh=RATIOS[data["ratio"]]; size=RESOLUTIONS.get(data.get("resolution","1024"),1024); scale=size/max(rw,rh); w,h=int(rw*scale)//8*8,int(rh*scale)//8*8
             payload={"prompt":f"adult, 18+, consensual, {STYLES[data['style']]}, {LEVELS[data['level']]}, {data['prompt']}","negative_prompt":NEGATIVE_PROMPT,"model":MODELS[data['model']],"width":w,"height":h,"steps":30,"cfg_scale":7,"seed":-1}
+            if data.get("target_url"):
+                payload.update({"input_image_url":data["target_url"],"task":"outfit_change","preserve_identity":True,"require_clothed_output":True})
             if kind=="video": payload.update({"duration_seconds":int(data.get("duration",3)),"fps":12,"engine":"animatediff"})
             endpoint=cfg.runpod_video_endpoint if kind=="video" else cfg.runpod_image_endpoint
             job,out=await runpod.submit(endpoint,payload); raw,ctype=await runpod.output_bytes(out); ext="mp4" if kind=="video" else "png"; url=await storage.upload(raw,ext,ctype,"generations")

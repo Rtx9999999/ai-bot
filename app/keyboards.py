@@ -7,7 +7,7 @@ def main():
         [B(text="🔥 Image artistique HOT", callback_data="gen"), B(text="⭐ Image HD", callback_data="gen_hd")],
         [B(text="✍️ Photo personnalisée", callback_data="photo_custom"), B(text="🎬 Vidéo personnalisée", callback_data="video")],
         [B(text="🎲 IA aléatoire", callback_data="random_gen"), B(text="🎭 Séance à thème", callback_data="theme_gen")],
-        [B(text="👗 Tenue artistique (fiction)", callback_data="fiction_outfit"), B(text="🔄 Face swap consenti", callback_data="swap")],
+        [B(text="👗 Changer tenue (photo)", callback_data="outfit_photo"), B(text="🔄 Face swap consenti", callback_data="swap")],
         [B(text="🎁 Bonus quotidien", callback_data="daily_bonus"), B(text="💳 Recharger", callback_data="shop")],
         [B(text="👤 Mon profil", callback_data="profile"), B(text="🖼 Ma galerie", callback_data="gallery:0")],
         [B(text="📚 Communauté", url="https://t.me/telegram"), B(text="❓ Aide & Support", callback_data="support")],
