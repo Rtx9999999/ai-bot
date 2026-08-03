@@ -49,7 +49,7 @@ class Settings(BaseSettings):
 
     @property
     def media_backend_ready(self) -> bool:
-        return configured(self.s3_endpoint_url, self.s3_access_key, self.s3_secret_key, self.s3_bucket, self.s3_public_url)
+        return configured(self.s3_endpoint_url, self.s3_access_key, self.s3_secret_key, self.s3_bucket)
 
     def generation_backend_ready(self, kind: str) -> bool:
         endpoint = self.runpod_video_endpoint if kind == "video" else self.runpod_image_endpoint

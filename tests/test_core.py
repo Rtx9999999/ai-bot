@@ -49,6 +49,19 @@ def test_example_placeholders_do_not_initialize_s3():
     assert Storage(cfg).client is None
 
 
+def test_private_s3_does_not_require_public_url():
+    cfg = Settings(
+        telegram_token="999999:real",
+        s3_endpoint_url="https://account.r2.cloudflarestorage.com",
+        s3_access_key="access-key",
+        s3_secret_key="secret-key",
+        s3_bucket="ai-bot-media",
+        s3_region="auto",
+        s3_public_url="https://media.example.com",
+    )
+    assert cfg.media_backend_ready
+
+
 def test_main_menu_includes_safe_faceswap():
     from app.keyboards import main
     labels = [button.text for row in main().inline_keyboard for button in row]

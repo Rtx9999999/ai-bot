@@ -2,8 +2,9 @@ import asyncio
 import io
 import uuid
 import boto3
+from botocore.config import Config
 from PIL import Image, ImageDraw, ImageFont
-from .config import Settings
+from .config import Settings, configured
 
 
 class Storage:
@@ -13,7 +14,8 @@ class Storage:
         if cfg.media_backend_ready:
             try:
                 self.client = boto3.client("s3", endpoint_url=cfg.s3_endpoint_url, aws_access_key_id=cfg.s3_access_key,
-                    aws_secret_access_key=cfg.s3_secret_key, region_name=cfg.s3_region)
+                    aws_secret_access_key=cfg.s3_secret_key, region_name=cfg.s3_region,
+                    config=Config(signature_version="s3v4"))
             except ValueError:
                 self.client = None
 
@@ -22,7 +24,26 @@ class Storage:
             raise RuntimeError("Stockage R2/S3 non configuré")
         key = f"{prefix}/{uuid.uuid4().hex}.{ext}"
         await asyncio.to_thread(self.client.put_object, Bucket=self.cfg.s3_bucket, Key=key, Body=data, ContentType=content_type)
-        return f"{self.cfg.s3_public_url}/{key}"
+        if configured(self.cfg.s3_public_url):
+            return f"{self.cfg.s3_public_url}/{key}"
+        return f"s3://{self.cfg.s3_bucket}/{key}"
+
+    async def url(self, reference: str, expires: int = 3600) -> str:
+        """Resolve a private S3 reference to a short-lived HTTPS URL."""
+        if not reference.startswith("s3://"):
+            return reference
+        if self.client is None:
+            raise RuntimeError("Stockage R2/S3 non configuré")
+        bucket_and_key = reference[5:]
+        bucket, separator, key = bucket_and_key.partition("/")
+        if not separator or not bucket or not key:
+            raise ValueError("Référence R2/S3 invalide")
+        return await asyncio.to_thread(
+            self.client.generate_presigned_url,
+            "get_object",
+            Params={"Bucket": bucket, "Key": key},
+            ExpiresIn=max(60, min(expires, 604800)),
+        )
 
     async def watermarked(self, data: bytes) -> bytes:
         def draw() -> bytes:

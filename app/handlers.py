@@ -71,7 +71,8 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
     async def outfit_upload(m:Message,state:FSMContext):
         f=await m.bot.get_file(m.photo[-1].file_id); buf=await m.bot.download_file(f.file_path)
         if len(buf.getvalue())>cfg.max_upload_mb*1024*1024:return await m.answer("Fichier trop volumineux.")
-        url=await storage.upload(buf.getvalue(),"jpg","image/jpeg","uploads")
+        ref=await storage.upload(buf.getvalue(),"jpg","image/jpeg","uploads")
+        url=await storage.url(ref)
         await state.update_data(kind="gen",entry="outfit_photo",target_url=url,model="realistic",style="realiste",level="soft",ratio="1:1",resolution="1024")
         await state.set_state(Flow.prompt)
         await m.answer("Décris la nouvelle tenue souhaitée. La nudité ou la transparence explicite sur une personne réelle sera refusée.")
@@ -121,8 +122,8 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
                 payload.update({"input_image_url":data["target_url"],"task":"outfit_change","preserve_identity":True,"require_clothed_output":True})
             if kind=="video": payload.update({"duration_seconds":int(data.get("duration",3)),"fps":12,"engine":"animatediff"})
             endpoint=cfg.runpod_video_endpoint if kind=="video" else cfg.runpod_image_endpoint
-            job,out=await runpod.submit(endpoint,payload); raw,ctype=await runpod.output_bytes(out); ext="mp4" if kind=="video" else "png"; url=await storage.upload(raw,ext,ctype,"generations")
-            await db.execute("UPDATE generations SET status='completed',runpod_job_id=?,result_url=? WHERE id=?",(job,url,gid)); task.cancel()
+            job,out=await runpod.submit(endpoint,payload); raw,ctype=await runpod.output_bytes(out); ext="mp4" if kind=="video" else "png"; ref=await storage.upload(raw,ext,ctype,"generations")
+            await db.execute("UPDATE generations SET status='completed',runpod_job_id=?,result_url=? WHERE id=?",(job,ref,gid)); task.cancel()
             if kind=="video": await m.bot.send_video(uid,BufferedInputFile(raw,"creation.mp4"),caption="✅ Vidéo terminée")
             else:
                 preview=await storage.watermarked(raw); await m.bot.send_photo(uid,BufferedInputFile(preview,"preview.jpg"),caption="✅ Aperçu filigrané. L'original est conservé dans votre galerie.")
@@ -149,7 +150,7 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
     async def gallery(c:CallbackQuery):
         items=await db.all("SELECT * FROM generations WHERE user_id=? AND status='completed' ORDER BY id DESC LIMIT 50",(c.from_user.id,)); i=int(c.data.split(":")[1])
         if not items:return await c.answer("Galerie vide.",show_alert=True)
-        i=max(0,min(i,len(items)-1)); x=items[i]; text=f"{x['kind'].upper()} · {x['created_at'][:16]}\n{x['prompt'] or 'Face swap'}\n{x['result_url']}"
+        i=max(0,min(i,len(items)-1)); x=items[i]; media_url=await storage.url(x["result_url"]); text=f"{x['kind'].upper()} · {x['created_at'][:16]}\n{x['prompt'] or 'Face swap'}\n{media_url}"
         await c.message.edit_text(text,reply_markup=kb.gallery(i,len(items)),disable_web_page_preview=False); await c.answer()
 
     @r.callback_query(F.data=="shop")
@@ -198,17 +199,17 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
     async def face(m:Message,state:FSMContext):
         f=await m.bot.get_file(m.photo[-1].file_id); buf=await m.bot.download_file(f.file_path)
         if len(buf.getvalue())>cfg.max_upload_mb*1024*1024:return await m.answer("Fichier trop volumineux.")
-        url=await storage.upload(buf.getvalue(),"jpg","image/jpeg","uploads"); await state.update_data(face_url=url); await state.set_state(Flow.swap_media); await m.answer("Envoyez maintenant l'image ou la vidéo cible. En l'envoyant, vous attestez avoir le consentement des personnes identifiables.")
+        ref=await storage.upload(buf.getvalue(),"jpg","image/jpeg","uploads"); url=await storage.url(ref); await state.update_data(face_url=url); await state.set_state(Flow.swap_media); await m.answer("Envoyez maintenant l'image ou la vidéo cible. En l'envoyant, vous attestez avoir le consentement des personnes identifiables.")
     @r.message(Flow.swap_media,F.photo|F.video)
     async def swap_media(m:Message,state:FSMContext):
         if not limiter.allowed(m.from_user.id):return await m.answer("Patientez quelques secondes.")
         cost=3
         if not await db.debit(m.from_user.id,cost):return await m.answer("Crédits insuffisants.",reply_markup=kb.shop())
         media=m.video or m.photo[-1]; f=await m.bot.get_file(media.file_id); buf=await m.bot.download_file(f.file_path); is_video=bool(m.video); ext="mp4" if is_video else "jpg"
-        target=await storage.upload(buf.getvalue(),ext,"video/mp4" if is_video else "image/jpeg","uploads"); d=await state.get_data(); await state.clear(); gid=await db.new_generation(m.from_user.id,"faceswap_video" if is_video else "faceswap","",{"consent_attested":True}); status=await m.answer("⏳ Face swap en cours…")
+        target_ref=await storage.upload(buf.getvalue(),ext,"video/mp4" if is_video else "image/jpeg","uploads"); target=await storage.url(target_ref); d=await state.get_data(); await state.clear(); gid=await db.new_generation(m.from_user.id,"faceswap_video" if is_video else "faceswap","",{"consent_attested":True}); status=await m.answer("⏳ Face swap en cours…")
         try:
-            job,out=await runpod.submit(cfg.runpod_faceswap_endpoint,{"source_face_url":d["face_url"],"target_url":target,"is_video":is_video,"engine":"insightface_roop","adult_consent_attested":True}); raw,ctype=await runpod.output_bytes(out); url=await storage.upload(raw,ext,ctype,"generations")
-            await db.execute("UPDATE generations SET status='completed',runpod_job_id=?,source_url=?,result_url=? WHERE id=?",(job,target,url,gid)); await (m.answer_video(BufferedInputFile(raw,"result.mp4")) if is_video else m.answer_photo(BufferedInputFile(await storage.watermarked(raw),"preview.jpg"))); await status.edit_text("✅ Face swap terminé.",reply_markup=kb.main())
+            job,out=await runpod.submit(cfg.runpod_faceswap_endpoint,{"source_face_url":d["face_url"],"target_url":target,"is_video":is_video,"engine":"insightface_roop","adult_consent_attested":True}); raw,ctype=await runpod.output_bytes(out); result_ref=await storage.upload(raw,ext,ctype,"generations")
+            await db.execute("UPDATE generations SET status='completed',runpod_job_id=?,source_url=?,result_url=? WHERE id=?",(job,target_ref,result_ref,gid)); await (m.answer_video(BufferedInputFile(raw,"result.mp4")) if is_video else m.answer_photo(BufferedInputFile(await storage.watermarked(raw),"preview.jpg"))); await status.edit_text("✅ Face swap terminé.",reply_markup=kb.main())
         except Exception as e: await db.credit(m.from_user.id,cost); await db.execute("UPDATE generations SET status='failed',error=? WHERE id=?",(str(e)[:1000],gid)); await status.edit_text("Échec. Crédits remboursés.")
 
     @r.message(Command("admin"))
