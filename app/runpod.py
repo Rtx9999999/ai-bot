@@ -14,6 +14,8 @@ class RunPodError(RuntimeError):
 class RunPod:
     def __init__(self, cfg: Settings):
         self.cfg = cfg
+        self._max_submit_attempts = 3
+        self._max_status_failures = 3
 
     @staticmethod
     async def _json(response: aiohttp.ClientResponse) -> dict:
@@ -31,13 +33,26 @@ class RunPod:
         base = f"https://api.runpod.ai/v2/{endpoint}"
         timeout = aiohttp.ClientTimeout(total=30, connect=10)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(f"{base}/run", headers=headers, json={"input": payload}) as response:
-                body = await self._json(response)
-                if response.status >= 300:
-                    raise RunPodError(f"RunPod submit HTTP {response.status}: {body}")
-                job = body.get("id")
-                if not job:
-                    raise RunPodError(f"RunPod n'a pas retourné d'identifiant de tâche: {body}")
+            job = None
+            submit_error: Exception | None = None
+            for attempt in range(1, self._max_submit_attempts + 1):
+                try:
+                    async with session.post(f"{base}/run", headers=headers, json={"input": payload}) as response:
+                        body = await self._json(response)
+                        if response.status >= 300:
+                            raise RunPodError(f"RunPod submit HTTP {response.status}: {body}")
+                        job = body.get("id")
+                        if not job:
+                            raise RunPodError(f"RunPod n'a pas retourné d'identifiant de tâche: {body}")
+                        break
+                except (aiohttp.ClientError, asyncio.TimeoutError, RunPodError) as exc:
+                    submit_error = exc
+                    if attempt >= self._max_submit_attempts:
+                        raise RunPodError(f"RunPod submit failed after {attempt} attempts: {exc}") from exc
+                    await asyncio.sleep(1.5 * attempt)
+
+            if job is None:
+                raise RunPodError(f"RunPod submit failed: {submit_error}")
 
             deadline = asyncio.get_running_loop().time() + self.cfg.runpod_timeout_seconds
             delay = 1.5
@@ -55,8 +70,8 @@ class RunPod:
                     consecutive_errors = 0
                 except (aiohttp.ClientError, asyncio.TimeoutError, RunPodError):
                     consecutive_errors += 1
-                    if consecutive_errors >= 3:
-                        raise
+                    if consecutive_errors >= self._max_status_failures:
+                        raise RunPodError("RunPod status unavailable after repeated failures")
                     continue
                 if status.get("status") == "COMPLETED":
                     return job, status.get("output") or {}

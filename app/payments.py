@@ -1,7 +1,6 @@
 import json
 import secrets
 from decimal import Decimal
-import aiohttp
 from .config import Settings
 from .db import Database, now
 
@@ -20,16 +19,7 @@ class CryptoPayments:
         return txid, amount
 
     async def _usd_price(self, provider: str) -> float:
-        fallback = self.cfg.sol_usd_price if provider == "sol" else self.cfg.eth_usd_price
-        asset = "solana" if provider == "sol" else "ethereum"
-        try:
-            timeout = aiohttp.ClientTimeout(total=8)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get("https://api.coingecko.com/api/v3/simple/price", params={"ids": asset, "vs_currencies": "usd"}) as response:
-                    response.raise_for_status(); value = float((await response.json())[asset]["usd"])
-                    return value if value > 0 else fallback
-        except Exception:
-            return fallback
+        return self.cfg.sol_usd_price if provider == "sol" else self.cfg.eth_usd_price
 
     async def verify(self, tx: dict) -> str | None:
         if tx["provider"] == "sol": return await self._sol(tx)
