@@ -16,8 +16,8 @@ class Settings(BaseSettings):
     telegram_token: str = Field(validation_alias=AliasChoices("TELEGRAM_TOKEN", "BOT_TOKEN", "TELEGRAM_BOT_TOKEN"))
     backup_telegram_token: str = ""
     backup_bot_username: str = ""
-    openai_api_key: str = ""
-    openai_chat_model: str = "gpt-4o-mini"
+    groq_api_key: str = ""
+    groq_chat_model: str = "llama-3.1-8b-instant"
     admin_ids: str = ""
     database_path: str = "data/bot.db"
     runpod_api_key: str = ""
