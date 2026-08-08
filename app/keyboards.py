@@ -4,25 +4,25 @@ from aiogram.types import InlineKeyboardButton as B, InlineKeyboardMarkup as M
 def rows(*items): return M(inline_keyboard=[[B(text=t, callback_data=d) for t,d in row] for row in items])
 def main():
     return M(inline_keyboard=[
-        [B(text="ðŸ”¥ Image", callback_data="gen"), B(text="â­ Image HD", callback_data="gen_hd")],
-        [B(text="âœï¸ Photo", callback_data="photo_custom"), B(text="ðŸŽ¬ VidÃ©o", callback_data="video")],
-        [B(text="ðŸŽ² AlÃ©atoire", callback_data="random_gen"), B(text="ðŸŽ­ ThÃ¨me", callback_data="theme_gen")],
-        [B(text="ðŸ‘— Changer la tenue", callback_data="outfit_photo")],
-        [B(text="ðŸ”„ Face swap consenti", callback_data="swap")],
-        [B(text="ðŸŽ Bonus quotidien", callback_data="daily_bonus"), B(text="ðŸ’³ Recharger", callback_data="shop")],
-        [B(text="ðŸ‘¤ Profil", callback_data="profile"), B(text="ðŸ–¼ Galerie", callback_data="gallery:0")],
-        [B(text="ðŸ¤ Parrainage", callback_data="referral"), B(text="ðŸ›¡ï¸ Bot de secours", callback_data="backup_bot")],
-        [B(text="ðŸ“š CommunautÃ©", url="https://t.me/telegram"), B(text="â“ Aide et support", callback_data="support")],
+        [B(text="🔥 Image", callback_data="gen"), B(text="⭐ Image HD", callback_data="gen_hd")],
+        [B(text="✍️ Photo", callback_data="photo_custom"), B(text="🎬 Vidéo", callback_data="video")],
+        [B(text="🎲 Aléatoire", callback_data="random_gen"), B(text="🎭 Thème", callback_data="theme_gen")],
+        [B(text="👗 Changer la tenue", callback_data="outfit_photo")],
+        [B(text="🔄 Face swap consenti", callback_data="swap")],
+        [B(text="🎁 Bonus quotidien", callback_data="daily_bonus"), B(text="💳 Recharger", callback_data="shop")],
+        [B(text="👤 Profil", callback_data="profile"), B(text="🖼 Galerie", callback_data="gallery:0")],
+        [B(text="🤝 Parrainage", callback_data="referral"), B(text="🛡️ Bot de secours", callback_data="backup_bot")],
+        [B(text="📚 Communauté", url="https://t.me/telegram"), B(text="❓ Aide et support", callback_data="support")],
     ])
-def age(): return rows((("âœ… Je certifie avoir 18 ans ou plus", "age:yes"),), (("âŒ Quitter", "age:no"),))
+def age(): return rows((("✅ Je certifie avoir 18 ans ou plus", "age:yes"),), (("❌ Quitter", "age:no"),))
 def models(): return rows((("Pony V6 XL","set:model:pony"),),( ("Realistic Vision 5.1","set:model:realistic"),),( ("Juggernaut XL","set:model:juggernaut"),))
 def choices(kind, values):
     return M(inline_keyboard=[[B(text=x.title(), callback_data=f"set:{kind}:{x}") for x in values[i:i+2]] for i in range(0,len(values),2)])
-def confirm(): return rows((("ðŸš€ Lancer (1 crÃ©dit)","generate:go"),),( ("âŒ Annuler","home"),))
-def shop(): return rows((("5 crÃ©dits â€” 199 â­","stars:5"),),( ("20 crÃ©dits â€” 599 â­","stars:20"),),( ("50 crÃ©dits â€” 1199 â­","stars:50"),),( ("100 crÃ©dits â€” 1999 â­","stars:100"),),( ("ðŸ‘‘ Premium â€” 2499 â­","stars:premium"),),( ("â—Ž Payer en SOL","crypto:sol"),),( ("ðŸ’Ž Payer en TON (GRAM)","crypto:ton"),),(("â†©ï¸ Menu","home"),))
+def confirm(): return rows((("🚀 Lancer (1 crédit)","generate:go"),),( ("❌ Annuler","home"),))
+def shop(): return rows((("5 crédits — 199 ⭐","stars:5"),),( ("20 crédits — 599 ⭐","stars:20"),),( ("50 crédits — 1199 ⭐","stars:50"),),( ("100 crédits — 1999 ⭐","stars:100"),),( ("👑 Premium — 2499 ⭐","stars:premium"),),( ("◎ Payer en SOL","crypto:sol"),),( ("💎 Payer en TON (GRAM)","crypto:ton"),),(("↩️ Menu","home"),))
 def gallery(index, total):
     nav=[]
-    if index>0: nav.append(B(text="â¬…ï¸",callback_data=f"gallery:{index-1}"))
+    if index>0: nav.append(B(text="⬅️",callback_data=f"gallery:{index-1}"))
     nav.append(B(text=f"{index+1}/{total}",callback_data="noop"))
-    if index+1<total: nav.append(B(text="âž¡ï¸",callback_data=f"gallery:{index+1}"))
-    return M(inline_keyboard=[nav,[B(text="â†©ï¸ Menu",callback_data="home")]])
+    if index+1<total: nav.append(B(text="➡️",callback_data=f"gallery:{index+1}"))
+    return M(inline_keyboard=[nav,[B(text="↩️ Menu",callback_data="home")]])
