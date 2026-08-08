@@ -5,6 +5,7 @@ from app.db import Database
 from app.security import validate_prompt, validate_real_photo_edit
 from app.config import Settings
 from app.storage import Storage
+from app.runpod import RunPod, RunPodError
 
 
 def test_prompt_filter():
@@ -66,6 +67,26 @@ def test_main_menu_includes_safe_faceswap():
     from app.keyboards import main
     labels = [button.text for row in main().inline_keyboard for button in row]
     callbacks = [button.callback_data for row in main().inline_keyboard for button in row]
-    assert "🔄 Face swap consenti" in labels
-    assert "👗 Changer tenue (photo)" in labels
+    assert "ðŸ”„ Face swap consenti" in labels
+    assert "ðŸ‘— Changer tenue (photo)" in labels
     assert "swap" in callbacks
+
+
+def test_runpod_decodes_base64_output():
+    async def run():
+        raw, content_type = await RunPod.output_bytes({"image": "aGVsbG8=", "content_type": "image/png"})
+        assert raw == b"hello"
+        assert content_type == "image/png"
+
+    asyncio.run(run())
+
+
+def test_runpod_rejects_invalid_base64_output():
+    async def run():
+        try:
+            await RunPod.output_bytes({"result": "not-valid-base64"})
+        except RunPodError:
+            return
+        raise AssertionError("invalid base64 should raise RunPodError")
+
+    asyncio.run(run())
