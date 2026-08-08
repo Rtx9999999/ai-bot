@@ -63,7 +63,14 @@ class Settings(BaseSettings):
         value = self.required_channel.strip()
         if value.startswith("https://t.me/"):
             value = value.removeprefix("https://t.me/").split("?", 1)[0]
+        if value.startswith("-100") or value.isdigit():
+            return value
         return value.lstrip("@")
+
+    @property
+    def required_channel_chat(self) -> str:
+        value = self.required_channel_username
+        return value if value.startswith("-100") or value.isdigit() else f"@{value}"
 
     @property
     def media_backend_ready(self) -> bool:

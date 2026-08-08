@@ -35,7 +35,7 @@ class SubscriptionMiddleware(BaseMiddleware):
         if isinstance(event, CallbackQuery) and event.data == "subscription:check":
             return await handler(event, data)
         try:
-            member = await event.bot.get_chat_member(f"@{channel}", event.from_user.id)
+            member = await event.bot.get_chat_member(self.cfg.required_channel_chat, event.from_user.id)
             subscribed = member.status in {"creator", "administrator", "member", "restricted"}
         except Exception:
             log.exception("channel subscription middleware failed")
@@ -72,7 +72,7 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
         if not channel or user_id in cfg.admins:
             return True
         try:
-            member = await bot.get_chat_member(f"@{channel}", user_id)
+            member = await bot.get_chat_member(cfg.required_channel_chat, user_id)
             return member.status in {"creator", "administrator", "member", "restricted"}
         except Exception:
             log.exception("channel subscription check failed")

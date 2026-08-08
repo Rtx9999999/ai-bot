@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardButton as B, InlineKeyboardMarkup as M
+﻿from aiogram.types import InlineKeyboardButton as B, InlineKeyboardMarkup as M
 
 
 def rows(*items): return M(inline_keyboard=[[B(text=t, callback_data=d) for t,d in row] for row in items])
@@ -13,14 +13,15 @@ def main():
         [B(text="👤 Profil", callback_data="profile"), B(text="🖼 Galerie", callback_data="gallery:0")],
         [B(text="🤝 Parrainage", callback_data="referral"), B(text="🛡️ Bot de secours", callback_data="backup_bot")],
         [B(text="🤖 Cloner le bot", callback_data="clone_bot")],
-        [B(text="📚 Communauté", url="https://t.me/telegram"), B(text="❓ Aide et support", callback_data="support")],
+        [B(text="📚 Communauté", url="https://t.me/+kdKqpfcLZk5iZGZk"), B(text="❓ Aide et support", callback_data="support")],
     ])
 def age(): return rows((("✅ Je certifie avoir 18 ans ou plus", "age:yes"),), (("❌ Quitter", "age:no"),))
 
 def subscription(channel: str):
     username = channel.lstrip("@")
+    join_url = "https://t.me/+kdKqpfcLZk5iZGZk" if username.startswith("-100") or username.isdigit() else f"https://t.me/{username}"
     return M(inline_keyboard=[
-        [B(text="📢 Rejoindre le canal", url=f"https://t.me/{username}")],
+        [B(text="📢 Rejoindre le canal", url=join_url)],
         [B(text="✅ Vérifier mon abonnement", callback_data="subscription:check")],
     ])
 def models(): return rows((("Pony V6 XL","set:model:pony"),),( ("Realistic Vision 5.1","set:model:realistic"),),( ("Juggernaut XL","set:model:juggernaut"),))
