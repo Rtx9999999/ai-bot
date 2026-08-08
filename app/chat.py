@@ -4,6 +4,7 @@ from collections import defaultdict, deque
 import aiohttp
 
 from .config import Settings
+from .db import Database, now
 
 
 SYSTEM_PROMPT = """Tu es l'assistante conversationnelle d'un bot Telegram de création d'images et de vidéos.
@@ -14,8 +15,9 @@ N'invente ni prix, ni solde, ni état de paiement."""
 
 
 class ChatAssistant:
-    def __init__(self, cfg: Settings):
+    def __init__(self, cfg: Settings, db: Database):
         self.cfg = cfg
+        self.db = db
         self._history: dict[int, deque[dict[str, str]]] = defaultdict(lambda: deque(maxlen=10))
         self._locks: dict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
 
@@ -26,6 +28,9 @@ class ChatAssistant:
     async def reply(self, user_id: int, text: str) -> str:
         async with self._locks[user_id]:
             history = self._history[user_id]
+            if not history:
+                stored = await self.db.all("SELECT role,content FROM chat_messages WHERE user_id=? ORDER BY id DESC LIMIT 10", (user_id,))
+                history.extend(reversed(stored))
             messages = [{"role": "system", "content": SYSTEM_PROMPT}, *history, {"role": "user", "content": text[:4000]}]
             headers = {"Authorization": f"Bearer {self.cfg.groq_api_key}", "Content-Type": "application/json"}
             payload = {"model": self.cfg.groq_chat_model, "messages": messages, "temperature": 0.7, "max_tokens": 700}
@@ -39,4 +44,10 @@ class ChatAssistant:
             answer = data["choices"][0]["message"]["content"].strip()
             history.append({"role": "user", "content": text[:4000]})
             history.append({"role": "assistant", "content": answer[:4000]})
+            await self.db.execute("INSERT INTO chat_messages(user_id,role,content,created_at) VALUES(?,?,?,?)", (user_id,"user",text[:4000],now()))
+            await self.db.execute("INSERT INTO chat_messages(user_id,role,content,created_at) VALUES(?,?,?,?)", (user_id,"assistant",answer[:4000],now()))
             return answer
+
+    async def reset(self, user_id: int) -> None:
+        self._history.pop(user_id, None)
+        await self.db.execute("DELETE FROM chat_messages WHERE user_id=?", (user_id,))
