@@ -4,6 +4,7 @@ import logging
 from html import escape
 from datetime import datetime, timezone
 from aiogram import Bot, F, Router
+from aiogram.dispatcher.middlewares.base import BaseMiddleware
 from aiogram.enums import ContentType
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
@@ -21,16 +22,68 @@ from .storage import Storage
 
 log = logging.getLogger(__name__)
 
+
+class SubscriptionMiddleware(BaseMiddleware):
+    def __init__(self, cfg: Settings):
+        self.cfg = cfg
+
+    async def __call__(self, handler, event, data):
+        channel = self.cfg.required_channel_username
+        if not channel or event.from_user.id in self.cfg.admins:
+            return await handler(event, data)
+        if isinstance(event, CallbackQuery) and event.data == "subscription:check":
+            return await handler(event, data)
+        try:
+            member = await event.bot.get_chat_member(f"@{channel}", event.from_user.id)
+            subscribed = member.status in {"creator", "administrator", "member", "restricted"}
+        except Exception:
+            log.exception("channel subscription middleware failed")
+            subscribed = False
+        if subscribed:
+            return await handler(event, data)
+        text = "📢 Pour utiliser ce bot, vous devez d'abord vous abonner à notre canal.\n\nAbonnez-vous, puis appuyez sur « Vérifier mon abonnement »."
+        if isinstance(event, Message):
+            await event.answer(text, reply_markup=kb.subscription(channel))
+        else:
+            await event.answer("Abonnement requis.", show_alert=True)
+            await event.message.answer(text, reply_markup=kb.subscription(channel))
+        return None
+
 class Flow(StatesGroup): prompt=State(); face=State(); swap_media=State(); crypto_pack=State(); outfit_photo=State()
 
 
 def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage, payments: CryptoPayments, limiter: RateLimiter, chat: ChatAssistant):
     r=Router()
+    subscription_middleware = SubscriptionMiddleware(cfg)
+    r.message.outer_middleware(subscription_middleware)
+    r.callback_query.outer_middleware(subscription_middleware)
     welcome=(
         "👋 Bienvenue ! Je suis votre secrétaire créative IA.\n\n"
         "Je vous accompagne pour créer vos images et vidéos, gérer votre galerie "
         "et suivre vos crédits. Choisissez une option ci-dessous pour commencer :"
     )
+
+    async def is_subscribed(bot: Bot, user_id: int) -> bool:
+        channel = cfg.required_channel_username
+        if not channel or user_id in cfg.admins:
+            return True
+        try:
+            member = await bot.get_chat_member(f"@{channel}", user_id)
+            return member.status in {"creator", "administrator", "member", "restricted"}
+        except Exception:
+            log.exception("channel subscription check failed")
+            return False
+
+    async def require_subscription(event: Message | CallbackQuery) -> bool:
+        if await is_subscribed(event.bot, event.from_user.id):
+            return True
+        text = "📢 Pour utiliser ce bot, vous devez d'abord vous abonner à notre canal.\n\nAbonnez-vous, puis appuyez sur « Vérifier mon abonnement »."
+        if isinstance(event, Message):
+            await event.answer(text, reply_markup=kb.subscription(cfg.required_channel_username))
+        else:
+            await event.answer("Abonnement requis.", show_alert=True)
+            await event.message.answer(text, reply_markup=kb.subscription(cfg.required_channel_username))
+        return False
 
     async def user_ok(event):
         uid=event.from_user.id; u=await db.one("SELECT * FROM users WHERE id=?",(uid,))
@@ -43,8 +96,19 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
         ref=int(command.args) if command.args and command.args.isdigit() else None
         u=await db.ensure_user(m.from_user.id,m.from_user.username,cfg.free_credits,ref)
         if u["banned"]: return await m.answer("Accès suspendu.")
+        if not await require_subscription(m): return
         if not u["age_verified"]: return await m.answer("🔞 Ce bot est strictement réservé aux adultes. Confirmez votre âge. Les contenus impliquant des mineurs ou l'absence de consentement sont interdits.",reply_markup=kb.age())
         await m.answer(welcome,reply_markup=kb.main())
+
+    @r.callback_query(F.data=="subscription:check")
+    async def subscription_check(c: CallbackQuery):
+        if not await is_subscribed(c.bot, c.from_user.id):
+            return await c.answer("Abonnement non détecté. Rejoignez le canal puis réessayez.", show_alert=True)
+        await c.answer("Abonnement confirmé !")
+        u = await db.ensure_user(c.from_user.id, c.from_user.username, cfg.free_credits)
+        if not u["age_verified"]:
+            return await c.message.edit_text("🔞 Ce bot est strictement réservé aux adultes. Confirmez votre âge.", reply_markup=kb.age())
+        await c.message.edit_text(welcome, reply_markup=kb.main())
 
     @r.callback_query(F.data=="age:yes")
     async def verify_age(c:CallbackQuery):
@@ -264,6 +328,8 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
         u = await db.ensure_user(m.from_user.id, m.from_user.username, cfg.free_credits)
         if u["banned"]:
             return await m.answer("Accès suspendu.")
+        if not await require_subscription(m):
+            return
         if not u["age_verified"]:
             return await m.answer("Confirmez d'abord votre âge avec /start.")
         if not chat.ready:
