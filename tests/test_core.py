@@ -67,11 +67,12 @@ def test_main_menu_includes_safe_faceswap():
     from app.keyboards import main
     labels = [button.text for row in main().inline_keyboard for button in row]
     callbacks = [button.callback_data for row in main().inline_keyboard for button in row]
-    assert "ðŸ”„ Face swap consenti" in labels
-    assert "ðŸ‘— Changer la tenue" in labels
+    assert "🔄 Face swap consenti" in labels
+    assert "👗 Changer la tenue" in labels
     assert "swap" in callbacks
     assert "referral" in callbacks
     assert "backup_bot" in callbacks
+    assert "clone_bot" in callbacks
 
 
 def test_shop_offers_sol_but_not_tron():
@@ -80,8 +81,8 @@ def test_shop_offers_sol_but_not_tron():
     buttons = [button for row in shop().inline_keyboard for button in row]
     labels = [button.text for button in buttons]
     callbacks = [button.callback_data for button in buttons]
-    assert "â—Ž Payer en SOL" in labels
-    assert "ðŸ’Ž Payer en TON (GRAM)" in labels
+    assert "◎ Payer en SOL" in labels
+    assert "💎 Payer en TON (GRAM)" in labels
     assert "crypto:sol" in callbacks
     assert "crypto:ton" in callbacks
     assert not any("TRON" in label.upper() or "USDT" in label.upper() for label in labels)
@@ -111,6 +112,20 @@ def test_native_ton_payment_creation():
 
     from decimal import Decimal
     asyncio.run(run())
+
+
+def test_user_interface_has_no_mojibake():
+    project = Path(__file__).parents[1]
+    files = [
+        project / "app" / "handlers.py",
+        project / "app" / "keyboards.py",
+        project / "app" / "security.py",
+        project / "app" / "storage.py",
+    ]
+    broken_sequences = ("Ã", "Â", "â€", "ðŸ")
+    for path in files:
+        text = path.read_text(encoding="utf-8")
+        assert not any(sequence in text for sequence in broken_sequences), path
 
 
 def test_runpod_decodes_base64_output():
