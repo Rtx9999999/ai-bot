@@ -78,7 +78,11 @@ CrÃ©ez un bucket, des clÃ©s S3 et un domaine public/custom domain. Utilisez 
 
 ## Paiements
 
-Telegram Stars utilise `sendInvoice` avec `currency=XTR` ; aucun jeton de fournisseur n'est nÃ©cessaire. Pour SOL, chaque commande reÃ§oit un montant unique Ã  six dÃ©cimales, puis `/verify ID` recherche une transaction confirmÃ©e de ce montant. `SOL_USD_PRICE` doit Ãªtre actualisÃ© par l'opÃ©rateur ; en production Ã  fort volume, branchez un oracle de prix et un indexeur ou webhook. Ne rÃ©utilisez jamais une adresse de dÃ©pÃ´t sur plusieurs instances sans base partagÃ©e.
+Telegram Stars utilise `sendInvoice` avec `currency=XTR` ; aucun jeton de fournisseur n'est nÃ©cessaire. SOL et TON natif (aussi appelÃ© GRAM dans l'ancienne terminologie) utilisent un montant unique par commande. TON exige Ã©galement le commentaire `BOT-ID`. `/verify ID` recherche ensuite une transaction confirmÃ©e. `SOL_USD_PRICE` et `TON_USD_PRICE` doivent Ãªtre actualisÃ©s par l'opÃ©rateur ; en production Ã  fort volume, branchez un oracle de prix et un indexeur ou webhook.
+
+## Bot de secours
+
+CrÃ©ez un second bot avec BotFather, puis configurez `BACKUP_TELEGRAM_TOKEN` et `BACKUP_BOT_USERNAME`. La mÃªme application Railway rÃ©pondra sur les deux bots et le menu principal donnera aux utilisateurs le lien du bot de secours. N'utilisez jamais le mÃªme jeton pour les deux variables.
 
 Packs Stars : 5/20/50/100 crÃ©dits. Premium ajoute 100 crÃ©dits et 30 jours. Une gÃ©nÃ©ration image coÃ»te 1 crÃ©dit, vidÃ©o 2, face swap 3. Le parrain reÃ§oit 10 % des crÃ©dits achetÃ©s, au minimum 1.
 
