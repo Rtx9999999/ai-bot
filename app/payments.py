@@ -13,11 +13,23 @@ class CryptoPayments:
         if provider not in {"sol", "ton"}:
             raise ValueError("unsupported payment provider")
         unique = Decimal(secrets.randbelow(899) + 100) / Decimal(1_000_000)
-        price = self.cfg.sol_usd_price if provider == "sol" else self.cfg.ton_usd_price
+        price = await self._usd_price(provider)
         amount = (Decimal(str(usd)) / Decimal(str(price)) + unique).quantize(Decimal("0.000001"))
         meta = json.dumps({"premium": premium, "usd": usd})
         txid = await self.db.execute("INSERT INTO transactions(user_id,provider,amount,currency,credits,status,metadata,created_at) VALUES(?,?,?,?,?,'pending',?,?)", (uid, provider, float(amount), provider.upper(), credits, meta, now()))
         return txid, amount
+
+    async def _usd_price(self, provider: str) -> float:
+        fallback = self.cfg.sol_usd_price if provider == "sol" else self.cfg.ton_usd_price
+        asset = "solana" if provider == "sol" else "the-open-network"
+        try:
+            timeout = aiohttp.ClientTimeout(total=8)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get("https://api.coingecko.com/api/v3/simple/price", params={"ids": asset, "vs_currencies": "usd"}) as response:
+                    response.raise_for_status(); value = float((await response.json())[asset]["usd"])
+                    return value if value > 0 else fallback
+        except Exception:
+            return fallback
 
     async def verify(self, tx: dict) -> str | None:
         if tx["provider"] == "sol": return await self._sol(tx)
