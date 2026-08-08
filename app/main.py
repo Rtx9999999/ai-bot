@@ -1,9 +1,11 @@
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from cryptography.fernet import Fernet, InvalidToken
 
 from .chat import ChatAssistant
@@ -88,6 +90,35 @@ async def main():
 
     primary, _ = await launch(cfg.telegram_token)
     primary_id = (await primary.get_me()).id
+
+    async def promo_loop():
+        chat = cfg.promo_chat.strip() or (f"@{cfg.required_channel_username}" if cfg.required_channel_username else "")
+        if not chat or cfg.promo_interval_minutes <= 0:
+            return
+        while True:
+            try:
+                state = await db.one("SELECT value FROM bot_state WHERE key='last_promo'")
+                last = datetime.fromisoformat(state["value"]) if state else None
+                elapsed = (datetime.now(timezone.utc) - last).total_seconds() if last else cfg.promo_interval_minutes * 60
+                if elapsed >= cfg.promo_interval_minutes * 60:
+                    me = await primary.get_me()
+                    text = (
+                        "🚀 <b>Transforme tes idées en images et vidéos avec l'IA !</b>\n\n"
+                        "🔥 Images uniques · ⭐ Haute qualité\n"
+                        "🎬 Vidéos IA · 👗 Changement de tenue\n"
+                        "🔄 Face swap consenti · 🤖 Clone du bot\n\n"
+                        "🎁 <b>Des crédits gratuits t'attendent pour essayer.</b>\n\n"
+                        "🔞 Service réservé aux personnes majeures."
+                    )
+                    markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🚀 Lancer le bot", url=f"https://t.me/{me.username}?start=community")]])
+                    await primary.send_message(chat, text, reply_markup=markup)
+                    stamp = datetime.now(timezone.utc).isoformat()
+                    await db.execute("INSERT INTO bot_state(key,value,updated_at) VALUES('last_promo',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at", (stamp, stamp))
+            except Exception:
+                logging.exception("Unable to publish scheduled promo")
+            await asyncio.sleep(60)
+
+    promo_task = asyncio.create_task(promo_loop(), name="hourly-promo")
     if cfg.backup_telegram_token and cfg.backup_telegram_token != cfg.telegram_token:
         await launch(cfg.backup_telegram_token)
 
@@ -102,6 +133,7 @@ async def main():
     try:
         await asyncio.gather(*(task for _, task in running.values()))
     finally:
+        promo_task.cancel()
         for _, task in running.values():
             task.cancel()
 
