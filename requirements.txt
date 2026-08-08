@@ -5,4 +5,4 @@ boto3==1.35.76
 Pillow==11.0.0
 pydantic-settings==2.7.0
 python-dotenv==1.0.1
-
+cryptography==44.0.0
