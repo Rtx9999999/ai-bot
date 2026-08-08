@@ -35,6 +35,12 @@ class Database:
             CREATE TABLE IF NOT EXISTS referrals(
               id INTEGER PRIMARY KEY AUTOINCREMENT, referrer_id INTEGER NOT NULL, referred_id INTEGER UNIQUE NOT NULL,
               bonus_credits INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS clone_bots(
+              id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id INTEGER NOT NULL,
+              bot_id INTEGER UNIQUE NOT NULL, username TEXT NOT NULL,
+              token_encrypted TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1,
+              created_at TEXT NOT NULL,
+              FOREIGN KEY(owner_id) REFERENCES users(id));
             CREATE INDEX IF NOT EXISTS idx_gen_user ON generations(user_id, created_at DESC);
             CREATE INDEX IF NOT EXISTS idx_tx_user ON transactions(user_id, created_at DESC);
             """)
@@ -96,4 +102,3 @@ class Database:
 
     async def new_generation(self, uid: int, kind: str, prompt: str, settings: dict) -> int:
         return await self.execute("INSERT INTO generations(user_id,kind,prompt,settings,status,created_at) VALUES(?,?,?,?,?,?)", (uid, kind, prompt, json.dumps(settings), "queued", now()))
-
