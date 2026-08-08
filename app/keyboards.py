@@ -15,6 +15,13 @@ def main():
         [B(text="📚 Communauté", url="https://t.me/telegram"), B(text="❓ Aide et support", callback_data="support")],
     ])
 def age(): return rows((("✅ Je certifie avoir 18 ans ou plus", "age:yes"),), (("❌ Quitter", "age:no"),))
+
+def subscription(channel: str):
+    username = channel.lstrip("@")
+    return M(inline_keyboard=[
+        [B(text="📢 Rejoindre le canal", url=f"https://t.me/{username}")],
+        [B(text="✅ Vérifier mon abonnement", callback_data="subscription:check")],
+    ])
 def models(): return rows((("Pony V6 XL","set:model:pony"),),( ("Realistic Vision 5.1","set:model:realistic"),),( ("Juggernaut XL","set:model:juggernaut"),))
 def choices(kind, values):
     return M(inline_keyboard=[[B(text=x.title(), callback_data=f"set:{kind}:{x}") for x in values[i:i+2]] for i in range(0,len(values),2)])
