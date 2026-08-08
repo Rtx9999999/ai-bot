@@ -24,7 +24,11 @@ class Flow(StatesGroup): prompt=State(); face=State(); swap_media=State(); crypt
 
 def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage, payments: CryptoPayments, limiter: RateLimiter):
     r=Router()
-    welcome="ðŸ‘‹ Bienvenue sur AI Assistant !\n\nChoisis une option ci-dessous pour commencer :"
+    welcome=(
+        "ðŸ‘‹ Bienvenue ! Je suis votre secrÃ©taire crÃ©ative IA.\n\n"
+        "Je vous accompagne pour crÃ©er vos images et vidÃ©os, gÃ©rer votre galerie "
+        "et suivre vos crÃ©dits. Choisissez une option ci-dessous pour commencer :"
+    )
 
     async def user_ok(event):
         uid=event.from_user.id; u=await db.one("SELECT * FROM users WHERE id=?",(uid,))
@@ -87,7 +91,7 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
 
     @r.callback_query(F.data=="support")
     async def support(c:CallbackQuery):
-        await c.message.edit_text("â“ Aide & Support\n\n/start â€” afficher le menu\n/verify ID â€” vÃ©rifier un paiement crypto\n\nPour toute demande, contacte l'administrateur du bot.",reply_markup=kb.rows((("â†©ï¸ Menu","home"),))); await c.answer()
+        await c.message.edit_text("â“ Aide et support\n\n/start â€” afficher le menu\n/verify ID â€” vÃ©rifier un paiement SOL\n\nPour toute demande, contactez l'administrateur du bot.",reply_markup=kb.rows((("â†©ï¸ Menu","home"),))); await c.answer()
 
     @r.callback_query(F.data.startswith("set:"))
     async def settings(c:CallbackQuery,state:FSMContext):
@@ -173,14 +177,16 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
 
     @r.callback_query(F.data.startswith("crypto:"))
     async def crypto(c:CallbackQuery,state:FSMContext):
-        await state.set_state(Flow.crypto_pack); await state.update_data(provider=c.data.split(":")[1]); await c.message.edit_text("Envoyez le nombre de crÃ©dits souhaitÃ© : 5, 20, 50 ou 100. Envoyez `premium` pour l'abonnement."); await c.answer()
+        if c.data != "crypto:sol":
+            return await c.answer("Ce moyen de paiement n'est pas disponible.", show_alert=True)
+        await state.set_state(Flow.crypto_pack); await state.update_data(provider="sol"); await c.message.edit_text("Indiquez le nombre de crÃ©dits souhaitÃ© : 5, 20, 50 ou 100. Envoyez `premium` pour l'abonnement."); await c.answer()
     @r.message(Flow.crypto_pack,F.text)
     async def crypto_pack(m:Message,state:FSMContext):
         val=m.text.lower().strip(); premium=val=="premium"
         if not premium and (not val.isdigit() or int(val) not in PACKS): return await m.answer("Choix invalide : 5, 20, 50, 100 ou premium.")
-        credits=cfg.premium_credits if premium else int(val); usd=24.99 if premium else {5:1.99,20:5.99,50:11.99,100:19.99}[credits]; d=await state.get_data(); provider=d["provider"]
-        txid,amount=await payments.create(m.from_user.id,provider,usd,credits,premium); wallet=cfg.solana_wallet if provider=="sol" else cfg.tron_wallet
-        await state.clear(); await m.answer(f"Envoyez exactement `{amount}` {'SOL' if provider=='sol' else 'USDT (TRC20)'} Ã  :\n`{wallet}`\n\nPuis /verify {txid}",parse_mode="Markdown")
+        credits=cfg.premium_credits if premium else int(val); usd=24.99 if premium else {5:1.99,20:5.99,50:11.99,100:19.99}[credits]
+        txid,amount=await payments.create(m.from_user.id,usd,credits,premium)
+        await state.clear(); await m.answer(f"Envoyez exactement `{amount}` SOL Ã  :\n`{cfg.solana_wallet}`\n\nPuis utilisez /verify {txid}",parse_mode="Markdown")
     @r.message(Command("verify"))
     async def verify(m:Message,command:CommandObject):
         if not command.args or not command.args.isdigit():return await m.answer("Usage : /verify ID")
@@ -219,7 +225,7 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
     async def admin(m:Message):
         if m.from_user.id not in cfg.admins:return
         s=await db.one("SELECT COUNT(*) users,SUM(credits) credits,SUM(age_verified) verified FROM users"); g=await db.one("SELECT COUNT(*) total,SUM(status='completed') completed FROM generations"); revenue=await db.all("SELECT currency,SUM(amount) amount FROM transactions WHERE status='paid' GROUP BY currency")
-        await m.answer(f"Utilisateurs: {s['users']} Â· vÃ©rifiÃ©s: {s['verified']} Â· crÃ©dits: {s['credits']}\nGÃ©nÃ©rations: {g['total']} Â· terminÃ©es: {g['completed']}\nRevenus: {revenue}\n\n/admin_credit ID N\n/admin_ban ID\n/admin_unban ID\n/admin_premium ID JOURS")
+        await m.answer(f"Utilisateurs : {s['users']} Â· vÃ©rifiÃ©s : {s['verified']} Â· crÃ©dits : {s['credits']}\nGÃ©nÃ©rations : {g['total']} Â· terminÃ©es : {g['completed']}\nRevenus : {revenue}\n\n/admin_credit ID N\n/admin_ban ID\n/admin_unban ID\n/admin_premium ID JOURS")
     @r.message(Command("admin_credit","admin_ban","admin_unban","admin_premium"))
     async def admin_action(m:Message,command:CommandObject):
         if m.from_user.id not in cfg.admins:return
