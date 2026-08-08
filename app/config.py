@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     telegram_token: str = Field(validation_alias=AliasChoices("TELEGRAM_TOKEN", "BOT_TOKEN", "TELEGRAM_BOT_TOKEN"))
     backup_telegram_token: str = ""
     backup_bot_username: str = ""
+    required_channel: str = ""
     groq_api_key: str = ""
     groq_chat_model: str = "llama-3.1-8b-instant"
     admin_ids: str = ""
@@ -50,6 +51,13 @@ class Settings(BaseSettings):
     @property
     def admins(self) -> set[int]:
         return {int(x.strip()) for x in self.admin_ids.split(",") if x.strip()}
+
+    @property
+    def required_channel_username(self) -> str:
+        value = self.required_channel.strip()
+        if value.startswith("https://t.me/"):
+            value = value.removeprefix("https://t.me/").split("?", 1)[0]
+        return value.lstrip("@")
 
     @property
     def media_backend_ready(self) -> bool:
