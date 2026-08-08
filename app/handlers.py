@@ -150,6 +150,20 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
         u=await db.one("SELECT * FROM users WHERE id=?",(c.from_user.id,)); premium=u["premium_until"] or "inactif"
         me=await c.bot.get_me(); await c.message.edit_text(f"ðŸ‘¤ @{u['username'] or '-'}\nCrÃ©dits : {u['credits']}\nPremium jusqu'au : {premium}\nLien de parrainage : https://t.me/{me.username}?start={u['id']}",reply_markup=kb.main()); await c.answer()
 
+    @r.callback_query(F.data=="referral")
+    async def referral(c:CallbackQuery):
+        me=await c.bot.get_me()
+        stats=await db.one("SELECT COUNT(*) invited,COALESCE(SUM(bonus_credits),0) bonus FROM referrals WHERE referrer_id=?",(c.from_user.id,))
+        link=f"https://t.me/{me.username}?start={c.from_user.id}"
+        await c.message.edit_text(f"ðŸ¤ Parrainage\n\nInvitÃ©s : {stats['invited']}\nCrÃ©dits gagnÃ©s : {stats['bonus']}\nBonus : {cfg.referral_bonus_percent} % des crÃ©dits achetÃ©s par vos filleuls.\n\nVotre lien :\n{link}",reply_markup=kb.rows((("â†©ï¸ Menu","home"),))); await c.answer()
+
+    @r.callback_query(F.data=="backup_bot")
+    async def backup_bot(c:CallbackQuery):
+        username=cfg.backup_bot_username.lstrip("@").strip()
+        if not username:
+            return await c.answer("Le bot de secours sera bientÃ´t disponible.",show_alert=True)
+        await c.message.edit_text(f"ðŸ›¡ï¸ Bot de secours\n\nEnregistrez ce second bot pour conserver un accÃ¨s au service :\nhttps://t.me/{username}",reply_markup=kb.rows((("â†©ï¸ Menu","home"),))); await c.answer()
+
     @r.callback_query(F.data.startswith("gallery:"))
     async def gallery(c:CallbackQuery):
         items=await db.all("SELECT * FROM generations WHERE user_id=? AND status='completed' ORDER BY id DESC LIMIT 50",(c.from_user.id,)); i=int(c.data.split(":")[1])
@@ -177,16 +191,20 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
 
     @r.callback_query(F.data.startswith("crypto:"))
     async def crypto(c:CallbackQuery,state:FSMContext):
-        if c.data != "crypto:sol":
+        if c.data not in {"crypto:sol", "crypto:ton"}:
             return await c.answer("Ce moyen de paiement n'est pas disponible.", show_alert=True)
-        await state.set_state(Flow.crypto_pack); await state.update_data(provider="sol"); await c.message.edit_text("Indiquez le nombre de crÃ©dits souhaitÃ© : 5, 20, 50 ou 100. Envoyez `premium` pour l'abonnement."); await c.answer()
+        provider=c.data.split(":",1)[1]
+        await state.set_state(Flow.crypto_pack); await state.update_data(provider=provider); await c.message.edit_text("Indiquez le nombre de crÃ©dits souhaitÃ© : 5, 20, 50 ou 100. Envoyez `premium` pour l'abonnement."); await c.answer()
     @r.message(Flow.crypto_pack,F.text)
     async def crypto_pack(m:Message,state:FSMContext):
         val=m.text.lower().strip(); premium=val=="premium"
         if not premium and (not val.isdigit() or int(val) not in PACKS): return await m.answer("Choix invalide : 5, 20, 50, 100 ou premium.")
-        credits=cfg.premium_credits if premium else int(val); usd=24.99 if premium else {5:1.99,20:5.99,50:11.99,100:19.99}[credits]
-        txid,amount=await payments.create(m.from_user.id,usd,credits,premium)
-        await state.clear(); await m.answer(f"Envoyez exactement `{amount}` SOL Ã  :\n`{cfg.solana_wallet}`\n\nPuis utilisez /verify {txid}",parse_mode="Markdown")
+        credits=cfg.premium_credits if premium else int(val); usd=24.99 if premium else {5:1.99,20:5.99,50:11.99,100:19.99}[credits]; d=await state.get_data(); provider=d["provider"]
+        wallet=cfg.solana_wallet if provider=="sol" else cfg.ton_wallet
+        if not wallet:return await m.answer("Ce portefeuille de paiement n'est pas encore configurÃ©.")
+        txid,amount=await payments.create(m.from_user.id,provider,usd,credits,premium)
+        asset="SOL" if provider=="sol" else "TON (GRAM)"; comment=f"\nCommentaire obligatoire : `BOT-{txid}`" if provider=="ton" else ""
+        await state.clear(); await m.answer(f"Envoyez exactement `{amount}` {asset} Ã  :\n`{wallet}`{comment}\n\nPuis utilisez /verify {txid}",parse_mode="Markdown")
     @r.message(Command("verify"))
     async def verify(m:Message,command:CommandObject):
         if not command.args or not command.args.isdigit():return await m.answer("Usage : /verify ID")
