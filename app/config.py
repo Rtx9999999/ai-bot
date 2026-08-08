@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
     telegram_token: str = Field(validation_alias=AliasChoices("TELEGRAM_TOKEN", "BOT_TOKEN", "TELEGRAM_BOT_TOKEN"))
+    backup_telegram_token: str = ""
+    backup_bot_username: str = ""
     admin_ids: str = ""
     database_path: str = "data/bot.db"
     runpod_api_key: str = ""
@@ -30,6 +32,10 @@ class Settings(BaseSettings):
     solana_rpc_url: str = "https://api.mainnet-beta.solana.com"
     solana_wallet: str = ""
     sol_usd_price: float = 150.0
+    toncenter_api_url: str = "https://toncenter.com/api/v2"
+    toncenter_api_key: str = ""
+    ton_wallet: str = ""
+    ton_usd_price: float = 6.0
     premium_days: int = 30
     premium_credits: int = 100
     free_credits: int = 2
