@@ -21,20 +21,20 @@ class ChatAssistant:
 
     @property
     def ready(self) -> bool:
-        return bool(self.cfg.openai_api_key.strip())
+        return bool(self.cfg.groq_api_key.strip())
 
     async def reply(self, user_id: int, text: str) -> str:
         async with self._locks[user_id]:
             history = self._history[user_id]
             messages = [{"role": "system", "content": SYSTEM_PROMPT}, *history, {"role": "user", "content": text[:4000]}]
-            headers = {"Authorization": f"Bearer {self.cfg.openai_api_key}", "Content-Type": "application/json"}
-            payload = {"model": self.cfg.openai_chat_model, "messages": messages, "temperature": 0.7, "max_tokens": 700}
+            headers = {"Authorization": f"Bearer {self.cfg.groq_api_key}", "Content-Type": "application/json"}
+            payload = {"model": self.cfg.groq_chat_model, "messages": messages, "temperature": 0.7, "max_tokens": 700}
             timeout = aiohttp.ClientTimeout(total=45)
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload) as response:
+                async with session.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload) as response:
                     if response.status >= 400:
                         detail = (await response.text())[:300]
-                        raise RuntimeError(f"OpenAI {response.status}: {detail}")
+                        raise RuntimeError(f"Groq {response.status}: {detail}")
                     data = await response.json()
             answer = data["choices"][0]["message"]["content"].strip()
             history.append({"role": "user", "content": text[:4000]})
