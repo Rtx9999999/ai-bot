@@ -12,6 +12,7 @@ def main():
         [B(text="🎁 Bonus quotidien", callback_data="daily_bonus"), B(text="💳 Recharger", callback_data="shop")],
         [B(text="👤 Profil", callback_data="profile"), B(text="🖼 Galerie", callback_data="gallery:0")],
         [B(text="🤝 Parrainage", callback_data="referral"), B(text="🛡️ Bot de secours", callback_data="backup_bot")],
+        [B(text="🤖 Cloner le bot", callback_data="clone_bot")],
         [B(text="📚 Communauté", url="https://t.me/telegram"), B(text="❓ Aide et support", callback_data="support")],
     ])
 def age(): return rows((("✅ Je certifie avoir 18 ans ou plus", "age:yes"),), (("❌ Quitter", "age:no"),))
