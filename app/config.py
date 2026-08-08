@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     runpod_image_endpoint: str = ""
     runpod_video_endpoint: str = ""
     runpod_faceswap_endpoint: str = ""
-    runpod_timeout_seconds: int = 600
+    runpod_timeout_seconds: int = 240
     s3_endpoint_url: str = ""
     s3_access_key: str = ""
     s3_secret_key: str = ""

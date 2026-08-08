@@ -229,8 +229,21 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
                     (job, error[:1000], gid),
                 )
                 log.exception("generation failed")
+                if "Délai RunPod dépassé" in error or "RunPod timeout" in error:
+                    message = (
+                        "⏳ RunPod n'a pas répondu à temps. "
+                        "Le worker est probablement absent ou saturé. "
+                        "Vos crédits ont été remboursés."
+                    )
+                elif "RunPod" in error and ("status HTTP 5" in error or "submit HTTP 5" in error):
+                    message = (
+                        "⚠️ RunPod rencontre un problème de service. "
+                        "Réessaie dans quelques minutes. Vos crédits ont été remboursés."
+                    )
+                else:
+                    message = f"Échec de génération: {error[:180]}. Vos crédits ont été remboursés."
                 await status.edit_text(
-                    f"Échec de génération: {error[:180]}. Vos crédits ont été remboursés.",
+                    message,
                     reply_markup=kb.main(),
                 )
 
