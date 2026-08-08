@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 from html import escape
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from aiogram import Bot, F, Router
 from aiogram.dispatcher.middlewares.base import BaseMiddleware
@@ -49,10 +50,10 @@ class SubscriptionMiddleware(BaseMiddleware):
             await event.message.answer(text, reply_markup=kb.subscription(channel))
         return None
 
-class Flow(StatesGroup): prompt=State(); face=State(); swap_media=State(); crypto_pack=State(); outfit_photo=State()
+class Flow(StatesGroup): prompt=State(); face=State(); swap_media=State(); crypto_pack=State(); outfit_photo=State(); clone_token=State()
 
 
-def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage, payments: CryptoPayments, limiter: RateLimiter, chat: ChatAssistant):
+def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage, payments: CryptoPayments, limiter: RateLimiter, chat: ChatAssistant, start_clone: Callable[[int, str], Awaitable[str]] | None = None):
     r=Router()
     subscription_middleware = SubscriptionMiddleware(cfg)
     r.message.outer_middleware(subscription_middleware)
@@ -229,6 +230,38 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
         if not username:
             return await c.answer("Le bot de secours sera bientôt disponible.",show_alert=True)
         await c.message.edit_text(f"🛡️ Bot de secours\n\nEnregistrez ce second bot pour conserver un accès au service :\nhttps://t.me/{username}",reply_markup=kb.rows((("↩️ Menu","home"),))); await c.answer()
+
+    @r.callback_query(F.data=="clone_bot")
+    async def clone_bot(c: CallbackQuery, state: FSMContext):
+        if start_clone is None or not cfg.clone_encryption_key:
+            return await c.answer("Le clonage est temporairement indisponible.", show_alert=True)
+        await state.clear()
+        await state.set_state(Flow.clone_token)
+        await c.message.edit_text(
+            "🤖 <b>Cloner ce bot</b>\n\n"
+            "1. Ouvrez @BotFather et envoyez /newbot.\n"
+            "2. Choisissez le nom et le nom d'utilisateur du clone.\n"
+            "3. Utilisez /setuserpic dans @BotFather et mettez la même photo que ce bot.\n"
+            "4. Collez ici le token fourni par @BotFather.\n\n"
+            "⚠️ Ne partagez jamais ce token ailleurs."
+        )
+        await c.answer()
+
+    @r.message(Flow.clone_token, F.text)
+    async def clone_token(m: Message, state: FSMContext):
+        token = m.text.strip()
+        if len(token) < 30 or ":" not in token:
+            return await m.answer("Token invalide. Copiez le token complet fourni par @BotFather.")
+        await state.clear()
+        status = await m.answer("⏳ Vérification et démarrage du clone…")
+        try:
+            result = await start_clone(m.from_user.id, token)
+            await status.edit_text(f"✅ {escape(result)}\n\nLe clone utilise maintenant les mêmes fonctions et le canal obligatoire.", reply_markup=kb.main())
+        except ValueError as exc:
+            await status.edit_text(f"❌ {escape(str(exc))}", reply_markup=kb.main())
+        except Exception:
+            log.exception("clone creation failed")
+            await status.edit_text("❌ Impossible de démarrer ce clone. Vérifiez le token et réessayez.", reply_markup=kb.main())
 
     @r.callback_query(F.data.startswith("gallery:"))
     async def gallery(c:CallbackQuery):
