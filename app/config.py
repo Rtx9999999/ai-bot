@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     backup_telegram_token: str = ""
     backup_bot_username: str = ""
     required_channel: str = ""
+    promo_chat: str = ""
+    promo_interval_minutes: int = 60
     clone_encryption_key: str = ""
     max_clones_per_user: int = 3
     groq_api_key: str = ""
