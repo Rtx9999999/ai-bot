@@ -1,11 +1,13 @@
 import re
 import time
+import unicodedata
 from collections import defaultdict, deque
 
 ILLEGAL = re.compile(
     r"\b(child|children|kid|minor|underage|preteen|teen(?:ager)?|schoolgirl|schoolboy|"
     r"loli|lolita|shota|young[- ]looking|rape|raping|forced sex|non[- ]?consensual|"
-    r"unconscious|drugged|incest|bestiality|zoophilia)\b", re.I
+    r"unconscious|drugged|incest|bestiality|zoophilia|enfant|mineur|mineure|adolescent|"
+    r"adolescente|viol|forcee?|sans consentement|inconscient|droguee?|inceste|zoophilie)\b", re.I
 )
 REAL_PHOTO_SEXUAL = re.compile(r"\b(nude|naked|nudity|topless|see[- ]?through|transparent|explicit|hardcore|genitals?|breasts?)\b", re.I)
 
@@ -13,7 +15,8 @@ REAL_PHOTO_SEXUAL = re.compile(r"\b(nude|naked|nudity|topless|see[- ]?through|tr
 def validate_prompt(prompt: str) -> tuple[bool, str]:
     text = prompt.strip()
     if len(text) < 3 or len(text) > 1500: return False, "Le prompt doit contenir entre 3 et 1500 caractères."
-    if ILLEGAL.search(text): return False, "Demande refusée : contenu illégal ou non consenti détecté."
+    normalized = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().translate(str.maketrans({"0":"o","1":"i","3":"e","4":"a","5":"s","7":"t","@":"a","$":"s"}))
+    if ILLEGAL.search(normalized): return False, "Demande refusée : contenu illégal ou non consenti détecté."
     return True, ""
 
 
