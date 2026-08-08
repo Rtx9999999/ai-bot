@@ -41,13 +41,23 @@ class RunPod:
 
             deadline = asyncio.get_running_loop().time() + self.cfg.runpod_timeout_seconds
             delay = 1.5
+            consecutive_errors = 0
             while asyncio.get_running_loop().time() < deadline:
                 await asyncio.sleep(delay)
                 delay = min(delay * 1.25, 8)
-                async with session.get(f"{base}/status/{job}", headers=headers) as response:
-                    status = await self._json(response)
-                    if response.status >= 300:
-                        raise RunPodError(f"RunPod status HTTP {response.status}: {status}")
+                try:
+                    async with session.get(f"{base}/status/{job}", headers=headers) as response:
+                        status = await self._json(response)
+                        if response.status >= 500:
+                            raise RunPodError(f"RunPod status HTTP {response.status}: {status}")
+                        if response.status >= 300:
+                            raise RunPodError(f"RunPod status HTTP {response.status}: {status}")
+                    consecutive_errors = 0
+                except (aiohttp.ClientError, asyncio.TimeoutError, RunPodError):
+                    consecutive_errors += 1
+                    if consecutive_errors >= 3:
+                        raise
+                    continue
                 if status.get("status") == "COMPLETED":
                     return job, status.get("output") or {}
                 if status.get("status") in {"FAILED", "CANCELLED", "TIMED_OUT"}:
