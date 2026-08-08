@@ -23,6 +23,54 @@ from .storage import Storage
 
 log = logging.getLogger(__name__)
 
+GENERATION_TRIGGERS = (
+    "génère", "genere", "générer", "generer", "crée", "cree", "créer", "creer",
+    "fais moi", "fait moi", "make me", "create", "draw", "dessine", "image",
+    "photo", "vidéo", "video", "face swap", "faceswap", "change la tenue", "change tenue",
+)
+
+
+def _looks_like_generation_request(text: str) -> bool:
+    normalized = " ".join(text.lower().split())
+    return any(trigger in normalized for trigger in GENERATION_TRIGGERS)
+
+
+def _infer_generation_kind(text: str) -> str:
+    normalized = " ".join(text.lower().split())
+    if "video" in normalized or "vidéo" in normalized or "animation" in normalized:
+        return "video"
+    return "gen"
+
+
+def _infer_generation_data(text: str) -> dict:
+    kind = _infer_generation_kind(text)
+    style = "realiste"
+    if any(word in text.lower() for word in ("anime", "manga")):
+        style = "anime"
+    elif any(word in text.lower() for word in ("fantasy", "fantastique")):
+        style = "fantasy"
+    elif any(word in text.lower() for word in ("furry",)):
+        style = "furry"
+    elif any(word in text.lower() for word in ("cartoon", "dessin")):
+        style = "cartoon"
+    level = "soft"
+    if any(word in text.lower() for word in ("hardcore", "explicite", "explicit")):
+        level = "hardcore"
+    elif any(word in text.lower() for word in ("nu", "nue", "naked", "topless")):
+        level = "explicite"
+    prompt = text.strip()
+    return {
+        "kind": kind,
+        "quality": "standard",
+        "entry": "natural_chat",
+        "model": "realistic",
+        "style": style,
+        "level": level,
+        "ratio": "1:1",
+        "resolution": "1024",
+        "prompt": prompt,
+    }
+
 
 class SubscriptionMiddleware(BaseMiddleware):
     def __init__(self, cfg: Settings):
@@ -458,6 +506,17 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
             return await m.answer("Le chat IA est en cours d'activation. Utilisez les boutons pour créer une image ou une vidéo.")
         if len(m.text) > 4000:
             return await m.answer("Votre message est trop long. Limitez-le à 4 000 caractères.")
+        if _looks_like_generation_request(m.text):
+            if not cfg.generation_backend_ready("video" if _infer_generation_kind(m.text) == "video" else "gen"):
+                return await m.answer(
+                    "Je peux le générer, mais RunPod ou le stockage n’est pas encore prêt."
+                    " Configurez les accès puis réessayez.",
+                    reply_markup=kb.main(),
+                )
+            data = _infer_generation_data(m.text)
+            await m.answer("🧠 J’ai compris ta demande. Je lance la génération tout de suite…")
+            await process_generation(m, m.from_user.id, data)
+            return
         try:
             await m.bot.send_chat_action(m.chat.id, "typing")
             answer = await chat.reply(m.from_user.id, m.text)
