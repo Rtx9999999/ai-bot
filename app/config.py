@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     backup_telegram_token: str = ""
     backup_bot_username: str = ""
     required_channel: str = ""
+    clone_encryption_key: str = ""
     groq_api_key: str = ""
     groq_chat_model: str = "llama-3.1-8b-instant"
     admin_ids: str = ""
