@@ -4,6 +4,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from .config import get_settings
+from .chat import ChatAssistant
 from .db import Database
 from .handlers import create_router
 from .payments import CryptoPayments
@@ -18,7 +19,7 @@ async def main():
     bot=Bot(cfg.telegram_token,default=DefaultBotProperties(parse_mode=ParseMode.HTML)); bots=[bot]; dp=Dispatcher()
     if cfg.backup_telegram_token and cfg.backup_telegram_token != cfg.telegram_token:
         bots.append(Bot(cfg.backup_telegram_token,default=DefaultBotProperties(parse_mode=ParseMode.HTML)))
-    dp.include_router(create_router(cfg,db,RunPod(cfg),Storage(cfg),CryptoPayments(cfg,db),RateLimiter(cfg.rate_limit_seconds)))
+    dp.include_router(create_router(cfg,db,RunPod(cfg),Storage(cfg),CryptoPayments(cfg,db),RateLimiter(cfg.rate_limit_seconds),ChatAssistant(cfg)))
     for current_bot in bots: await current_bot.delete_webhook(drop_pending_updates=False)
     try: await dp.start_polling(*bots,allowed_updates=dp.resolve_used_update_types())
     finally:
