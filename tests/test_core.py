@@ -68,8 +68,10 @@ def test_main_menu_includes_safe_faceswap():
     labels = [button.text for row in main().inline_keyboard for button in row]
     callbacks = [button.callback_data for row in main().inline_keyboard for button in row]
     assert "ðŸ”„ Face swap consenti" in labels
-    assert "ðŸ‘— Changer tenue (photo)" in labels
+    assert "ðŸ‘— Changer la tenue" in labels
     assert "swap" in callbacks
+    assert "referral" in callbacks
+    assert "backup_bot" in callbacks
 
 
 def test_shop_offers_sol_but_not_tron():
@@ -79,7 +81,9 @@ def test_shop_offers_sol_but_not_tron():
     labels = [button.text for button in buttons]
     callbacks = [button.callback_data for button in buttons]
     assert "â—Ž Payer en SOL" in labels
+    assert "ðŸ’Ž Payer en TON (GRAM)" in labels
     assert "crypto:sol" in callbacks
+    assert "crypto:ton" in callbacks
     assert not any("TRON" in label.upper() or "USDT" in label.upper() for label in labels)
     assert "crypto:tron" not in callbacks
 
@@ -88,6 +92,25 @@ def test_tron_configuration_removed():
     cfg = Settings(telegram_token="999999:test")
     assert not hasattr(cfg, "tron_wallet")
     assert not hasattr(cfg, "trongrid_api_url")
+
+
+def test_native_ton_payment_creation():
+    from app.payments import CryptoPayments
+
+    async def run():
+        with tempfile.TemporaryDirectory() as directory:
+            db = Database(str(Path(directory) / "test.db"))
+            await db.init()
+            await db.ensure_user(7, "ton_user", 0)
+            cfg = Settings(telegram_token="999999:test", ton_usd_price=5)
+            payment_id, amount = await CryptoPayments(cfg, db).create(7, "ton", 10, 20)
+            row = await db.one("SELECT * FROM transactions WHERE id=?", (payment_id,))
+            assert row["provider"] == "ton"
+            assert row["currency"] == "TON"
+            assert Decimal("2") < amount < Decimal("2.001")
+
+    from decimal import Decimal
+    asyncio.run(run())
 
 
 def test_runpod_decodes_base64_output():
