@@ -39,7 +39,14 @@ class SubscriptionMiddleware(BaseMiddleware):
             subscribed = member.status in {"creator", "administrator", "member", "restricted"}
         except Exception:
             log.exception("channel subscription middleware failed")
-            subscribed = False
+            if isinstance(event, Message):
+                await event.answer(
+                    "📢 Vérification du canal indisponible pour le moment. Réessayez dans quelques instants.",
+                    reply_markup=kb.subscription(channel),
+                )
+            else:
+                await event.answer("Vérification du canal indisponible.", show_alert=True)
+            return None
         if subscribed:
             return await handler(event, data)
         text = "📢 Pour utiliser ce bot, vous devez d'abord vous abonner à notre canal.\n\nAbonnez-vous, puis appuyez sur « Vérifier mon abonnement »."
