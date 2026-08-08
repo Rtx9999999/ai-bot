@@ -30,17 +30,13 @@ class Settings(BaseSettings):
     solana_rpc_url: str = "https://api.mainnet-beta.solana.com"
     solana_wallet: str = ""
     sol_usd_price: float = 150.0
-    trongrid_api_url: str = "https://api.trongrid.io"
-    trongrid_api_key: str = ""
-    tron_wallet: str = ""
-    usdt_trc20_contract: str = "TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj"
     premium_days: int = 30
     premium_credits: int = 100
     free_credits: int = 2
     referral_bonus_percent: int = 10
     rate_limit_seconds: int = 2
     max_upload_mb: int = 15
-    watermark_text: str = "PREVIEW • 18+"
+    watermark_text: str = "PREVIEW â€¢ 18+"
     log_level: str = "INFO"
 
     @property
