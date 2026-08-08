@@ -53,8 +53,11 @@ class SubscriptionMiddleware(BaseMiddleware):
 class Flow(StatesGroup): prompt=State(); face=State(); swap_media=State(); crypto_pack=State(); outfit_photo=State(); clone_token=State()
 
 
-def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage, payments: CryptoPayments, limiter: RateLimiter, chat: ChatAssistant, start_clone: Callable[[int, str], Awaitable[str]] | None = None):
+def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage, payments: CryptoPayments, limiter: RateLimiter, chat: ChatAssistant, start_clone: Callable[[int, str], Awaitable[str]] | None = None, stop_clone: Callable[[int, int], Awaitable[bool]] | None = None):
     r=Router()
+    generation_slots = asyncio.Semaphore(cfg.max_concurrent_generations)
+    queue_lock = asyncio.Lock()
+    queue_waiting = 0
     subscription_middleware = SubscriptionMiddleware(cfg)
     r.message.outer_middleware(subscription_middleware)
     r.callback_query.outer_middleware(subscription_middleware)
@@ -182,25 +185,32 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
         await m.answer(f"Confirmer :\n\n{m.text}\n\nModèle: {d['model']} · Style: {d['style']} · Niveau: {d['level']} · Ratio: {d['ratio']}",reply_markup=kb.confirm())
 
     async def process_generation(m:Message,uid:int,data:dict):
+        nonlocal queue_waiting
         kind=data["kind"]; cost=2 if kind=="video" else 1
         if not await db.debit(uid,cost): return await m.edit_text("Crédits insuffisants.",reply_markup=kb.shop())
-        gid=await db.new_generation(uid,kind,data["prompt"],data); status=await m.edit_text("⏳ Génération en cours… 0%")
-        task=asyncio.create_task(_animate(status)); job=None
-        try:
-            rw,rh=RATIOS[data["ratio"]]; size=RESOLUTIONS.get(data.get("resolution","1024"),1024); scale=size/max(rw,rh); w,h=int(rw*scale)//8*8,int(rh*scale)//8*8
-            payload={"prompt":f"adult, 18+, consensual, {STYLES[data['style']]}, {LEVELS[data['level']]}, {data['prompt']}","negative_prompt":NEGATIVE_PROMPT,"model":MODELS[data['model']],"width":w,"height":h,"steps":30,"cfg_scale":7,"seed":-1}
-            if data.get("target_url"):
-                payload.update({"input_image_url":data["target_url"],"task":"outfit_change","preserve_identity":True,"require_clothed_output":True})
-            if kind=="video": payload.update({"duration_seconds":int(data.get("duration",3)),"fps":12,"engine":"animatediff"})
-            endpoint=cfg.runpod_video_endpoint if kind=="video" else cfg.runpod_image_endpoint
-            job,out=await runpod.submit(endpoint,payload); raw,ctype=await runpod.output_bytes(out); ext="mp4" if kind=="video" else "png"; ref=await storage.upload(raw,ext,ctype,"generations")
-            await db.execute("UPDATE generations SET status='completed',runpod_job_id=?,result_url=? WHERE id=?",(job,ref,gid)); task.cancel()
-            if kind=="video": await m.bot.send_video(uid,BufferedInputFile(raw,"creation.mp4"),caption="✅ Vidéo terminée")
-            else:
-                preview=await storage.watermarked(raw); await m.bot.send_photo(uid,BufferedInputFile(preview,"preview.jpg"),caption="✅ Aperçu filigrané. L'original est conservé dans votre galerie.")
-            await status.edit_text("✅ Génération terminée.",reply_markup=kb.main())
-        except Exception as e:
-            task.cancel(); await db.credit(uid,cost); await db.execute("UPDATE generations SET status='failed',runpod_job_id=?,error=? WHERE id=?",(job,str(e)[:1000],gid)); log.exception("generation failed"); await status.edit_text("Échec de génération. Vos crédits ont été remboursés.",reply_markup=kb.main())
+        gid=await db.new_generation(uid,kind,data["prompt"],data)
+        async with queue_lock:
+            queue_waiting += 1; position = queue_waiting
+        status=await m.edit_text(f"🕐 File d'attente — position {position}")
+        async with generation_slots:
+            async with queue_lock: queue_waiting = max(0, queue_waiting - 1)
+            await status.edit_text("⏳ Génération en cours… 0%")
+            task=asyncio.create_task(_animate(status)); job=None
+            try:
+                rw,rh=RATIOS[data["ratio"]]; size=RESOLUTIONS.get(data.get("resolution","1024"),1024); scale=size/max(rw,rh); w,h=int(rw*scale)//8*8,int(rh*scale)//8*8
+                payload={"prompt":f"adult, 18+, consensual, {STYLES[data['style']]}, {LEVELS[data['level']]}, {data['prompt']}","negative_prompt":NEGATIVE_PROMPT,"model":MODELS[data['model']],"width":w,"height":h,"steps":30,"cfg_scale":7,"seed":-1}
+                if data.get("target_url"):
+                    payload.update({"input_image_url":data["target_url"],"task":"outfit_change","preserve_identity":True,"require_clothed_output":True})
+                if kind=="video": payload.update({"duration_seconds":int(data.get("duration",3)),"fps":12,"engine":"animatediff"})
+                endpoint=cfg.runpod_video_endpoint if kind=="video" else cfg.runpod_image_endpoint
+                job,out=await runpod.submit(endpoint,payload); raw,ctype=await runpod.output_bytes(out); ext="mp4" if kind=="video" else "png"; ref=await storage.upload(raw,ext,ctype,"generations")
+                await db.execute("UPDATE generations SET status='completed',runpod_job_id=?,result_url=? WHERE id=?",(job,ref,gid)); task.cancel()
+                if kind=="video": await m.bot.send_video(uid,BufferedInputFile(raw,"creation.mp4"),caption="✅ Vidéo terminée")
+                else:
+                    preview=await storage.watermarked(raw); await m.bot.send_photo(uid,BufferedInputFile(preview,"preview.jpg"),caption="✅ Aperçu filigrané. L'original est conservé dans votre galerie.")
+                await status.edit_text("✅ Génération terminée.",reply_markup=kb.main())
+            except Exception as e:
+                task.cancel(); await db.credit(uid,cost); await db.execute("UPDATE generations SET status='failed',runpod_job_id=?,error=? WHERE id=?",(job,str(e)[:1000],gid)); log.exception("generation failed"); await status.edit_text("Échec de génération. Vos crédits ont été remboursés.",reply_markup=kb.main())
 
     async def _animate(msg:Message):
         try:
@@ -237,6 +247,19 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
             return await c.answer("Le clonage est temporairement indisponible.", show_alert=True)
         await state.clear()
         await state.set_state(Flow.clone_token)
+        clones = await db.all("SELECT bot_id,username,active FROM clone_bots WHERE owner_id=? ORDER BY id DESC", (c.from_user.id,))
+        buttons = [[kb.B(text=f"🛑 Désactiver @{x['username']}", callback_data=f"clone:disable:{x['bot_id']}")] for x in clones if x["active"]]
+        buttons.append([kb.B(text="➕ Connecter un nouveau clone", callback_data="clone:new")])
+        buttons.append([kb.B(text="↩️ Menu", callback_data="home")])
+        await c.message.edit_text("🤖 <b>Mes clones</b>\n\nVous pouvez connecter jusqu'à 3 clones.", reply_markup=kb.M(inline_keyboard=buttons))
+        await c.answer()
+
+    @r.callback_query(F.data=="clone:new")
+    async def clone_new(c: CallbackQuery, state: FSMContext):
+        count = await db.one("SELECT COUNT(*) total FROM clone_bots WHERE owner_id=? AND active=1", (c.from_user.id,))
+        if count["total"] >= cfg.max_clones_per_user:
+            return await c.answer("Limite de clones atteinte.", show_alert=True)
+        await state.clear(); await state.set_state(Flow.clone_token)
         await c.message.edit_text(
             "🤖 <b>Cloner ce bot</b>\n\n"
             "1. Ouvrez @BotFather et envoyez /newbot.\n"
@@ -247,9 +270,18 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
         )
         await c.answer()
 
+    @r.callback_query(F.data.startswith("clone:disable:"))
+    async def clone_disable(c: CallbackQuery):
+        bot_id = int(c.data.rsplit(":", 1)[1])
+        ok = bool(stop_clone and await stop_clone(c.from_user.id, bot_id))
+        await c.answer("Clone désactivé." if ok else "Clone introuvable.", show_alert=True)
+        await c.message.edit_text("🤖 Clone désactivé. Son token chiffré a été retiré.", reply_markup=kb.main())
+
     @r.message(Flow.clone_token, F.text)
     async def clone_token(m: Message, state: FSMContext):
         token = m.text.strip()
+        try: await m.delete()
+        except Exception: pass
         if len(token) < 30 or ":" not in token:
             return await m.answer("Token invalide. Copiez le token complet fourni par @BotFather.")
         await state.clear()
@@ -313,6 +345,11 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
         if not external:return await m.answer("Paiement confirmé introuvable. Attendez les confirmations puis réessayez.")
         ok=await db.complete_payment(tx["id"],external,cfg.premium_days,cfg.referral_bonus_percent); await m.answer("✅ Paiement confirmé et compte crédité." if ok else "Paiement déjà traité.",reply_markup=kb.main())
 
+    @r.message(Command("reset"))
+    async def reset_chat(m: Message):
+        await chat.reset(m.from_user.id)
+        await m.answer("🧠 Mémoire de la conversation effacée.", reply_markup=kb.main())
+
     @r.callback_query(F.data=="swap")
     async def swap(c:CallbackQuery,state:FSMContext):
         if not cfg.faceswap_backend_ready:
@@ -342,7 +379,22 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
     async def admin(m:Message):
         if m.from_user.id not in cfg.admins:return
         s=await db.one("SELECT COUNT(*) users,SUM(credits) credits,SUM(age_verified) verified FROM users"); g=await db.one("SELECT COUNT(*) total,SUM(status='completed') completed FROM generations"); revenue=await db.all("SELECT currency,SUM(amount) amount FROM transactions WHERE status='paid' GROUP BY currency")
-        await m.answer(f"Utilisateurs : {s['users']} · vérifiés : {s['verified']} · crédits : {s['credits']}\nGénérations : {g['total']} · terminées : {g['completed']}\nRevenus : {revenue}\n\n/admin_credit ID N\n/admin_ban ID\n/admin_unban ID\n/admin_premium ID JOURS")
+        await m.answer(f"Utilisateurs : {s['users']} · vérifiés : {s['verified']} · crédits : {s['credits']}\nGénérations : {g['total']} · terminées : {g['completed']}\nRevenus : {revenue}\n\n/admin_credit ID N\n/admin_ban ID\n/admin_unban ID\n/admin_premium ID JOURS", reply_markup=kb.admin_panel())
+
+    @r.callback_query(F.data.startswith("admin:"))
+    async def admin_panel(c: CallbackQuery):
+        if c.from_user.id not in cfg.admins: return await c.answer("Accès refusé.", show_alert=True)
+        section = c.data.split(":", 1)[1]
+        if section == "stats":
+            u=await db.one("SELECT COUNT(*) total,SUM(age_verified) verified,SUM(credits) credits FROM users"); g=await db.one("SELECT COUNT(*) total,SUM(status='completed') completed,SUM(status='failed') failed FROM generations")
+            text=f"📊 Utilisateurs : {u['total']}\nVérifiés : {u['verified'] or 0}\nCrédits : {u['credits'] or 0}\nGénérations : {g['total']}\nTerminées : {g['completed'] or 0}\nÉchouées : {g['failed'] or 0}"
+        elif section == "failures":
+            rows=await db.all("SELECT id,kind,error FROM generations WHERE status='failed' ORDER BY id DESC LIMIT 8"); text="⚠️ Derniers échecs\n\n"+"\n".join(f"#{x['id']} {x['kind']} — {(x['error'] or '')[:90]}" for x in rows)
+        elif section == "users":
+            rows=await db.all("SELECT id,username,credits FROM users ORDER BY created_at DESC LIMIT 10"); text="👥 Nouveaux utilisateurs\n\n"+"\n".join(f"{x['id']} @{x['username'] or '-'} — {x['credits']} crédits" for x in rows)
+        else:
+            rows=await db.all("SELECT id,provider,currency,amount,status FROM transactions ORDER BY id DESC LIMIT 10"); text="💳 Paiements récents\n\n"+"\n".join(f"#{x['id']} {x['amount']} {x['currency']} — {x['status']}" for x in rows)
+        await c.message.edit_text(text or "Aucune donnée.", reply_markup=kb.admin_panel()); await c.answer()
     @r.message(Command("admin_credit","admin_ban","admin_unban","admin_premium"))
     async def admin_action(m:Message,command:CommandObject):
         if m.from_user.id not in cfg.admins:return
