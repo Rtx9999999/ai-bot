@@ -34,3 +34,9 @@ def gallery(index, total):
     nav.append(B(text=f"{index+1}/{total}",callback_data="noop"))
     if index+1<total: nav.append(B(text="➡️",callback_data=f"gallery:{index+1}"))
     return M(inline_keyboard=[nav,[B(text="↩️ Menu",callback_data="home")]])
+
+def admin_panel(): return rows(
+    (("📊 Statistiques", "admin:stats"), ("⚠️ Échecs", "admin:failures")),
+    (("👥 Utilisateurs", "admin:users"), ("💳 Paiements", "admin:payments")),
+    (("↩️ Menu", "home"),),
+)
