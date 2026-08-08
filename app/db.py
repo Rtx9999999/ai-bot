@@ -41,6 +41,10 @@ class Database:
               token_encrypted TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1,
               created_at TEXT NOT NULL,
               FOREIGN KEY(owner_id) REFERENCES users(id));
+            CREATE TABLE IF NOT EXISTS chat_messages(
+              id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
+              role TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS idx_chat_user ON chat_messages(user_id,id DESC);
             CREATE INDEX IF NOT EXISTS idx_gen_user ON generations(user_id, created_at DESC);
             CREATE INDEX IF NOT EXISTS idx_tx_user ON transactions(user_id, created_at DESC);
             """)
