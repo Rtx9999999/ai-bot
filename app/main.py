@@ -25,11 +25,11 @@ async def main():
     running: dict[int, tuple[Bot, asyncio.Task]] = {}
     primary_id: int | None = None
 
-    def make_dispatcher(start_clone):
+    def make_dispatcher(start_clone, stop_clone):
         dp = Dispatcher()
         dp.include_router(create_router(
             cfg, db, RunPod(cfg), Storage(cfg), CryptoPayments(cfg, db),
-            RateLimiter(cfg.rate_limit_seconds), ChatAssistant(cfg), start_clone,
+            RateLimiter(cfg.rate_limit_seconds), ChatAssistant(cfg, db), start_clone, stop_clone,
         ))
         return dp
 
@@ -44,7 +44,7 @@ async def main():
             await bot.session.close()
             return running[me.id][0], f"@{me.username} est déjà actif."
         await bot.delete_webhook(drop_pending_updates=False)
-        dp = make_dispatcher(start_clone)
+        dp = make_dispatcher(start_clone, stop_clone)
 
         async def poll():
             try:
@@ -61,6 +61,9 @@ async def main():
             raise ValueError("Le chiffrement des clones n'est pas configuré.")
         if token in {cfg.telegram_token, cfg.backup_telegram_token}:
             raise ValueError("Ce token appartient déjà à un bot du service.")
+        count = await db.one("SELECT COUNT(*) total FROM clone_bots WHERE owner_id=? AND active=1", (owner_id,))
+        if count["total"] >= cfg.max_clones_per_user:
+            raise ValueError("Vous avez atteint la limite de clones actifs.")
         bot, result = await launch(token)
         me = await bot.get_me()
         if me.id == primary_id:
@@ -72,6 +75,16 @@ async def main():
             (owner_id, me.id, me.username or str(me.id), encrypted, now()),
         )
         return result
+
+    async def stop_clone(owner_id: int, bot_id: int) -> bool:
+        row = await db.one("SELECT id FROM clone_bots WHERE owner_id=? AND bot_id=? AND active=1", (owner_id, bot_id))
+        if not row:
+            return False
+        await db.execute("UPDATE clone_bots SET active=0,token_encrypted='' WHERE id=?", (row["id"],))
+        active = running.pop(bot_id, None)
+        if active:
+            active[1].cancel()
+        return True
 
     primary, _ = await launch(cfg.telegram_token)
     primary_id = (await primary.get_me()).id
