@@ -37,7 +37,7 @@ class RunPod:
                     raise RunPodError(f"RunPod submit HTTP {response.status}: {body}")
                 job = body.get("id")
                 if not job:
-                    raise RunPodError(f"RunPod n'a pas retournÃ© d'identifiant de tÃ¢che: {body}")
+                    raise RunPodError(f"RunPod n'a pas retourné d'identifiant de tâche: {body}")
 
             deadline = asyncio.get_running_loop().time() + self.cfg.runpod_timeout_seconds
             delay = 1.5
@@ -58,13 +58,13 @@ class RunPod:
                     pass
             except aiohttp.ClientError:
                 pass
-            raise RunPodError("DÃ©lai RunPod dÃ©passÃ©")
+            raise RunPodError("Délai RunPod dépassé")
 
     @staticmethod
     async def output_bytes(output: dict) -> tuple[bytes, str]:
         value = output.get("image") or output.get("video") or output.get("result") or (output.get("images") or [None])[0]
         if not value:
-            raise RunPodError("Le worker n'a retournÃ© aucun mÃ©dia")
+            raise RunPodError("Le worker n'a retourné aucun média")
         if isinstance(value, dict):
             value = value.get("url") or value.get("base64")
         if str(value).startswith("http"):
@@ -77,5 +77,5 @@ class RunPod:
         try:
             decoded = base64.b64decode(raw, validate=True)
         except (binascii.Error, ValueError) as exc:
-            raise RunPodError("Le worker a retournÃ© un mÃ©dia base64 invalide") from exc
+            raise RunPodError("Le worker a retourné un média base64 invalide") from exc
         return decoded, str(output.get("content_type") or "application/octet-stream")
