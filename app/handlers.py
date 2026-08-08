@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 import json
 import logging
 from html import escape
@@ -210,11 +210,28 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
                     preview=await storage.watermarked(raw); await m.bot.send_photo(uid,BufferedInputFile(preview,"preview.jpg"),caption="✅ Aperçu filigrané. L'original est conservé dans votre galerie.")
                 await status.edit_text("✅ Génération terminée.",reply_markup=kb.main())
             except Exception as e:
-                task.cancel(); await db.credit(uid,cost); await db.execute("UPDATE generations SET status='failed',runpod_job_id=?,error=? WHERE id=?",(job,str(e)[:1000],gid)); log.exception("generation failed"); await status.edit_text("Échec de génération. Vos crédits ont été remboursés.",reply_markup=kb.main())
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                error = str(e).strip() or e.__class__.__name__
+                await db.credit(uid,cost)
+                await db.execute(
+                    "UPDATE generations SET status='failed',runpod_job_id=?,error=? WHERE id=?",
+                    (job, error[:1000], gid),
+                )
+                log.exception("generation failed")
+                await status.edit_text(
+                    f"Échec de génération: {error[:180]}. Vos crédits ont été remboursés.",
+                    reply_markup=kb.main(),
+                )
 
     async def _animate(msg:Message):
         try:
-            for pct in (15,30,45,60,75,90): await asyncio.sleep(4); await msg.edit_text(f"⏳ Génération en cours… {pct}%")
+            for pct in (15,30,45,60,75,90,95):
+                await asyncio.sleep(4)
+                await msg.edit_text(f"⏳ Génération en cours… {pct}%")
         except (asyncio.CancelledError,Exception): pass
 
     @r.callback_query(F.data=="generate:go")
@@ -322,7 +339,7 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
 
     @r.callback_query(F.data.startswith("crypto:"))
     async def crypto(c:CallbackQuery,state:FSMContext):
-        if c.data not in {"crypto:sol", "crypto:ton"}:
+        if c.data not in {"crypto:sol", "crypto:eth"}:
             return await c.answer("Ce moyen de paiement n'est pas disponible.", show_alert=True)
         provider=c.data.split(":",1)[1]
         await state.set_state(Flow.crypto_pack); await state.update_data(provider=provider); await c.message.edit_text("Indiquez le nombre de crédits souhaité : 5, 20, 50 ou 100. Envoyez `premium` pour l'abonnement."); await c.answer()
@@ -331,10 +348,10 @@ def create_router(cfg: Settings, db: Database, runpod: RunPod, storage: Storage,
         val=m.text.lower().strip(); premium=val=="premium"
         if not premium and (not val.isdigit() or int(val) not in PACKS): return await m.answer("Choix invalide : 5, 20, 50, 100 ou premium.")
         credits=cfg.premium_credits if premium else int(val); usd=24.99 if premium else {5:1.99,20:5.99,50:11.99,100:19.99}[credits]; d=await state.get_data(); provider=d["provider"]
-        wallet=cfg.solana_wallet if provider=="sol" else cfg.ton_wallet
+        wallet=cfg.solana_wallet if provider=="sol" else cfg.eth_wallet
         if not wallet:return await m.answer("Ce portefeuille de paiement n'est pas encore configuré.")
         txid,amount=await payments.create(m.from_user.id,provider,usd,credits,premium)
-        asset="SOL" if provider=="sol" else "TON (GRAM)"; comment=f"\nCommentaire obligatoire : `BOT-{txid}`" if provider=="ton" else ""
+        asset="SOL" if provider=="sol" else "ETH"; comment=""
         await state.clear(); await m.answer(f"Envoyez exactement `{amount}` {asset} à :\n`{wallet}`{comment}\n\nPuis utilisez /verify {txid}",parse_mode="Markdown")
     @r.message(Command("verify"))
     async def verify(m:Message,command:CommandObject):

@@ -82,9 +82,9 @@ def test_shop_offers_sol_but_not_tron():
     labels = [button.text for button in buttons]
     callbacks = [button.callback_data for button in buttons]
     assert "◎ Payer en SOL" in labels
-    assert "💎 Payer en TON (GRAM)" in labels
+    assert "💎 Payer en ETH" in labels
     assert "crypto:sol" in callbacks
-    assert "crypto:ton" in callbacks
+    assert "crypto:eth" in callbacks
     assert not any("TRON" in label.upper() or "USDT" in label.upper() for label in labels)
     assert "crypto:tron" not in callbacks
 
@@ -93,21 +93,23 @@ def test_tron_configuration_removed():
     cfg = Settings(telegram_token="999999:test")
     assert not hasattr(cfg, "tron_wallet")
     assert not hasattr(cfg, "trongrid_api_url")
+    assert not hasattr(cfg, "ton_wallet")
+    assert not hasattr(cfg, "toncenter_api_url")
 
 
-def test_native_ton_payment_creation():
+def test_native_eth_payment_creation():
     from app.payments import CryptoPayments
 
     async def run():
         with tempfile.TemporaryDirectory() as directory:
             db = Database(str(Path(directory) / "test.db"))
             await db.init()
-            await db.ensure_user(7, "ton_user", 0)
-            cfg = Settings(telegram_token="999999:test", ton_usd_price=5)
-            payment_id, amount = await CryptoPayments(cfg, db).create(7, "ton", 10, 20)
+            await db.ensure_user(7, "eth_user", 0)
+            cfg = Settings(telegram_token="999999:test", eth_usd_price=5, eth_wallet="0x123")
+            payment_id, amount = await CryptoPayments(cfg, db).create(7, "eth", 10, 20)
             row = await db.one("SELECT * FROM transactions WHERE id=?", (payment_id,))
-            assert row["provider"] == "ton"
-            assert row["currency"] == "TON"
+            assert row["provider"] == "eth"
+            assert row["currency"] == "ETH"
             assert Decimal("2") < amount < Decimal("2.001")
 
     from decimal import Decimal

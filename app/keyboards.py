@@ -27,7 +27,7 @@ def models(): return rows((("Pony V6 XL","set:model:pony"),),( ("Realistic Visio
 def choices(kind, values):
     return M(inline_keyboard=[[B(text=x.title(), callback_data=f"set:{kind}:{x}") for x in values[i:i+2]] for i in range(0,len(values),2)])
 def confirm(): return rows((("🚀 Lancer (1 crédit)","generate:go"),),( ("❌ Annuler","home"),))
-def shop(): return rows((("5 crédits — 199 ⭐","stars:5"),),( ("20 crédits — 599 ⭐","stars:20"),),( ("50 crédits — 1199 ⭐","stars:50"),),( ("100 crédits — 1999 ⭐","stars:100"),),( ("👑 Premium — 2499 ⭐","stars:premium"),),( ("◎ Payer en SOL","crypto:sol"),),( ("💎 Payer en TON (GRAM)","crypto:ton"),),(("↩️ Menu","home"),))
+def shop(): return rows((("5 crédits — 199 ⭐","stars:5"),),( ("20 crédits — 599 ⭐","stars:20"),),( ("50 crédits — 1199 ⭐","stars:50"),),( ("100 crédits — 1999 ⭐","stars:100"),),( ("👑 Premium — 2499 ⭐","stars:premium"),),( ("◎ Payer en SOL","crypto:sol"),),( ("💎 Payer en ETH","crypto:eth"),),(("↩️ Menu","home"),))
 def gallery(index, total):
     nav=[]
     if index>0: nav.append(B(text="⬅️",callback_data=f"gallery:{index-1}"))

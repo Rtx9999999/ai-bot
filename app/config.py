@@ -39,10 +39,11 @@ class Settings(BaseSettings):
     solana_rpc_url: str = "https://api.mainnet-beta.solana.com"
     solana_wallet: str = ""
     sol_usd_price: float = 150.0
-    toncenter_api_url: str = "https://toncenter.com/api/v2"
-    toncenter_api_key: str = ""
-    ton_wallet: str = ""
-    ton_usd_price: float = 6.0
+    eth_rpc_url: str = "https://cloudflare-eth.com"
+    etherscan_api_url: str = "https://api.etherscan.io/api"
+    etherscan_api_key: str = ""
+    eth_wallet: str = ""
+    eth_usd_price: float = 2500.0
     premium_days: int = 30
     premium_credits: int = 100
     free_credits: int = 2
