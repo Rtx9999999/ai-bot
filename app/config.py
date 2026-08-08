@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     backup_bot_username: str = ""
     required_channel: str = ""
     clone_encryption_key: str = ""
+    max_clones_per_user: int = 3
     groq_api_key: str = ""
     groq_chat_model: str = "llama-3.1-8b-instant"
     admin_ids: str = ""
@@ -46,6 +47,7 @@ class Settings(BaseSettings):
     referral_bonus_percent: int = 10
     rate_limit_seconds: int = 2
     max_upload_mb: int = 15
+    max_concurrent_generations: int = 2
     watermark_text: str = "PREVIEW • 18+"
     log_level: str = "INFO"
 
